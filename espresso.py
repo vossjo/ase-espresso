@@ -99,8 +99,9 @@ bohr = 0.52917721092
 rydberg_over_bohr = rydberg / bohr
 
 class espresso(Calculator):
-    def __init__(self, pw=350.0, dw=3500.0, nbands=-10, kpts=(1,1,1),
-                       xc='PBE', spinpol=False,
+    def __init__(self, pw=350.0, dw=3500.0, nbands=-10, 
+                 kpts=(1,1,1),kptshift=(0,0,0),
+                 xc='PBE', spinpol=False,
 		       outdir=None, calcstress=False,
 		       psppath=None, smearing='mv', sigma=0.2,
 		       U=None,J=None,
@@ -127,6 +128,7 @@ class espresso(Calculator):
 	self.dw = dw
 	self.nbands = nbands
 	self.kpts = kpts
+    self.kptshift = kptshift
 	self.xc = xc
 	self.smearing = smearing
 	self.sigma = sigma
@@ -337,7 +339,7 @@ class espresso(Calculator):
 		print >>f, '%-2s %21.15fd0 %21.15fd0 %21.15fd0' % (x[0],x[1][0],x[1][1],x[1][2])
 	
 	print >>f, 'K_POINTS automatic'
-	print >>f, self.kpts[0], self.kpts[1], self.kpts[2], '0 0 0'
+    print >>f, self.kpts[0], self.kpts[1],self.kpts[2],self.kptshift[0],self.kptshift[1],self.kptshift[2]
 	f.close()
 	
     def set_atoms(self, atoms):
@@ -420,7 +422,7 @@ class espresso(Calculator):
 	    s.close()
 		
 
-    def initialize(self, atoms):
+    def initialize(self, atoms, calcstart=1):
 	if not self.started:
 	    a = self.atoms
 	    s = a.get_chemical_symbols()
@@ -435,7 +437,8 @@ class espresso(Calculator):
 	    self.natoms = len(s)
 	    self.spos = zip(s, a.get_scaled_positions())
 	    self.writeinputfile()
-	    self.start()
+        if calcstart:
+    	    self.start()
     
     def start(self):
 	if not self.started:
