@@ -164,10 +164,11 @@ class espresso(Calculator):
         except:
             pass
 
-    #espresso needs an atom with a different starting magnetization
-    #to be considered as a different species;
-    #this helper function creates the corresponding 'species'
     def convertmag2species(self):
+        """ Quantum espresso requires different initial magnetizations have
+        independent species(i.e. for AFM states two species are required for the same element)
+        This creates independent species for different initial magnetizations.
+        """
         smag = [('%s_%.3f' % (a,m)) for a,m in zip(self.atoms.get_chemical_symbols(),self.atoms.get_initial_magnetic_moments())]
         msym = {}
         for s,p,m,g in zip(smag,self.spos,self.atoms.get_masses(),self.atoms.get_initial_magnetic_moments()):
@@ -175,7 +176,7 @@ class espresso(Calculator):
         k = msym.keys()
         k.sort()
         for i,x in enumerate(k):
-            msym[x][0] += '_'+str(i)
+            msym[x][0] += str(i)
         self.msym = msym
         self.mkeys = k
         self.smag = smag
