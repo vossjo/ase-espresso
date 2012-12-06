@@ -168,10 +168,10 @@ class espresso(Calculator):
     #to be considered as a different species;
     #this helper function creates the corresponding 'species'
     def convertmag2species(self):
-        smag = [('%.3f' % m) for m in self.atoms.get_initial_magnetic_moments()]
+        smag = [('%s_%.3f' % (a,m)) for a,m in zip(self.atoms.get_chemical_symbols(),self.atoms.get_initial_magnetic_moments())]
         msym = {}
-        for s,p,m in zip(smag,self.spos,self.atoms.get_masses()):
-            msym[s] = [p[0],m]
+        for s,p,m,g in zip(smag,self.spos,self.atoms.get_masses(),self.atoms.get_initial_magnetic_moments()):
+            msym[s] = [p[0],m,g]
         k = msym.keys()
         k.sort()
         for i,x in enumerate(k):
@@ -231,7 +231,7 @@ class espresso(Calculator):
         if self.spinpol:
             print >>f, '  nspin=2,'
             for i,m in enumerate(self.mkeys):
-                print >>f, '  starting_magnetization(%d)=%sd0,' % (i+1,m)
+                print >>f, '  starting_magnetization(%d)=%sd0,' % (i+1,self.msym[m][2])
         print >>f, '  input_dft=\''+self.xc+'\','
         edir = 3
         if dipfield:
