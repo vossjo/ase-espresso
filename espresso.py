@@ -326,7 +326,7 @@ class espresso(Calculator):
         if self.spinpol:
             for k in self.mkeys:
                 x = self.msym[k]
-                print >>f, x[0], x[1], x[0].split('_')[0]+'.UPF'
+                print >>f, x[0], x[1], x[0].strip('0123456789')+'.UPF'
         else:
             for x in self.species:
                 print >>f, x[0], x[1], x[0]+'.UPF'
