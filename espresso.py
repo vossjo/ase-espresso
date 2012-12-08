@@ -11,8 +11,7 @@ perProcMpiExec = 'pam -g /afs/slac/g/suncat/bin/suncat-tsmpirun -x LD_LIBRARY_PA
 
 from ase.calculators.general import Calculator
 import atexit
-import os
-import sys
+import os, sys, string
 import numpy as np
 
 
@@ -105,6 +104,7 @@ class espresso(Calculator):
                        outdir=None, calcstress=False,
                        psppath=None, smearing='mv', sigma=0.2,
                        U=None,J=None,
+                       tot_charge=0.0, # +1 means 1 e missing, -1 means 1 extra e
                        dipole={'status':False},
                        field={'status':False},
                        output={'avoidio':False, 'removewf':True},
@@ -133,6 +133,7 @@ class espresso(Calculator):
         self.smearing = smearing
         self.sigma = sigma
         self.spinpol = spinpol
+        self.tot_charge = tot_charge
         self.outdir = outdir
         self.calcstress = calcstress
         if psppath is None:
@@ -164,28 +165,64 @@ class espresso(Calculator):
         except:
             pass
 
-    def convertmag2species(self):
-        """ Quantum espresso requires different initial magnetizations have
-        independent species(i.e. for AFM states two species are required for the same element)
-        This creates independent species for different initial magnetizations.
+    def atoms2species(self):
+        """ Define several properties of the quantum espresso species from the ase atoms object.
+        
+        Constructs a dictionary (self.specdict) with the elements and their associated properties.
+        Each element has the keys: 
+        'mass', 
+        'magmoms' : a list with the number of unique magnetic moments, used to define # of species
+        
+        Constructs self.specprops which contain species labels, masses, magnetic moments, and positions.
+        Also defines self.species and self.nspecies.
         """
-        smag = [('%s_%.3f' % (a,m)) for a,m in zip(self.atoms.get_chemical_symbols(),self.atoms.get_initial_magnetic_moments())]
-        msym = {}
-        for s,p,m,g in zip(smag,self.spos,self.atoms.get_masses(),self.atoms.get_initial_magnetic_moments()):
-            msym[s] = [p[0],m,g]
-        k = msym.keys()
-        k.sort()
-        for i,x in enumerate(k):
-            msym[x][0] += str(i)
-        self.msym = msym
-        self.mkeys = k
-        self.smag = smag
+        atypes = list( set(self.atoms.get_chemical_symbols()) )
+        
+        aprops = zip(self.atoms.get_chemical_symbols(), self.atoms.get_masses(),
+                     self.atoms.get_initial_magnetic_moments(), 
+                     self.atoms.get_scaled_positions())
+        
+        #### CREATE DICTIONARY FOR EACH ATOM TYPE ####
+        typedict = {}
+        for atype in atypes:
+            typedict[atype] = {}
+            maglist  = []
+            masslist = []
+            Ulist    = []
+            for atom in self.atoms:
+                if atom.symbol == atype:
+                    maglist.append(atom.get_initial_magnetic_moment())
+                    masslist.append(atom.mass)
+            typedict[atype]['magmoms'] = list( set(maglist) )
+            typedict[atype]['mass'] = list( set(masslist) )
 
+        #### CREATE INDICES FOR EACH ATOM TYPE UNIQUE MAGMOM, STARTING AT 1 ####
+        speciesindex = []
+        for type, info in typedict.iteritems():
+            tcount = 1
+            for mag in info['magmoms']:
+                speciesindex.append(type+str(tcount))
+                tcount += 1
 
+        #### UPDATE THE SPECIES PROPERTIES TO INCLUDE THE SPECIES ID #####
+        specprops = []
+        for a in aprops:
+            for i, mag in enumerate(typedict[a[0]]['magmoms']):
+                if mag == a[2]:
+                    specprops.append( (a[0]+str(i+1),a[1],a[2],a[3]) )
+
+        self.specdict  = typedict
+        self.species   = speciesindex
+        self.nspecies  = len(self.species)
+        self.specprops = specprops
+           
+    
     def writeinputfile(self):
         if self.atoms is None:
             raise ValueError, 'no atoms defined'
         f = open(self.localtmp+'/pw.inp', 'w')
+        
+        ### &CONTROL ###
         print >>f, '&CONTROL\n  calculation=\'relax\',\n  prefix=\'calc\','
         print >>f, '  pseudo_dir=\''+self.psppath+'\','
         print >>f, '  outdir=\'.\','
@@ -201,14 +238,14 @@ class espresso(Calculator):
         if self.output is not None and self.output.has_key('avoidio'):
             if self.output['avoidio']:
                 print >>f, '  disk_io=\'none\','
-        
+
+        ### &SYSTEM ###
         print >>f, '/\n&SYSTEM\n  ibrav=0,\n  celldm(1)=1.8897261245650618d0,'
         print >>f, '  nat='+str(self.natoms)+','
-        if self.spinpol:
-            self.convertmag2species()
-            print >>f, '  ntyp='+str(len(self.msym))+','
-        else:
-            print >>f, '  ntyp='+str(self.nspec)+','
+        self.atoms2species() #self.convertmag2species()
+        print >>f, '  ntyp='+str(self.nspecies)+',' #str(len(self.msym))+','
+        if not self.tot_charge:
+            print >>f, '  tot_charge='+str(self.tot_charge)+','
         print >>f, '  ecutwfc='+str(self.pw/rydberg)+'d0,'
         print >>f, '  ecutrho='+str(self.dw/rydberg)+'d0,'
         if self.nbands is not None:
@@ -218,11 +255,12 @@ class espresso(Calculator):
                 n = 0
                 nel = {}
                 for x in self.species:
-                    p = os.popen('grep "Z valence" '+self.psppath+'/'+x[0]+'.UPF','r')
-                    nel[x[0]] = int(round(float(p.readline().split()[-3])))
+                    el = x.strip('0123456789')
+                    p = os.popen('grep "Z valence" '+self.psppath+'/'+el+'.UPF','r')
+                    nel[el] = int(round(float(p.readline().split()[-3])))
                     p.close()
-                for x in self.spos:
-                    n += nel[x[0]]
+                for x in self.specprops:
+                    n += nel[x[0].strip('0123456789')]
                 if not self.spinpol:
                     n /= 2
                 print >>f, '  nbnd='+str(n-self.nbands)+','
@@ -231,8 +269,13 @@ class espresso(Calculator):
         print >>f, '  degauss='+str(self.sigma/rydberg)+'d0,'
         if self.spinpol:
             print >>f, '  nspin=2,'
-            for i,m in enumerate(self.mkeys):
-                print >>f, '  starting_magnetization(%d)=%sd0,' % (i+1,self.msym[m][2])
+            spcount  = 1
+            for species in self.species: # FOLLOW SAME ORDERING ROUTINE AS FOR PSP                
+                magindex = int(string.join([i for i in species if i.isdigit()],''))
+                el  = species.strip('0123456789')
+                mag = self.specdict[el]['magmoms'][magindex-1]
+                print >>f, '  starting_magnetization(%d)=%sd0,' % (spcount,mag)
+                spcount += 1
         print >>f, '  input_dft=\''+self.xc+'\','
         edir = 3
         if dipfield:
@@ -286,13 +329,16 @@ class espresso(Calculator):
             else:
                 print >>f, '  lda_plus_u_kind=0,'
             for i,s in enumerate(self.species):
-                if self.U.has_key(s[0]):
-                    print >>f, '  Hubbard_U('+str(i+1)+')='+str(self.U[s[0]])+'d0,'
+                el = s.strip('0123456789')
+                if self.U.has_key(el):
+                    print >>f, '  Hubbard_U('+str(i+1)+')='+str(self.U[el])+'d0,'
             if self.J is not None:
                 for i,s in enumerate(self.species):
-                    if self.J.has_key(s[0]):
-                        print >>f, '  Hubbard_J(1,'+str(i+1)+')='+str(self.J[s[0]])+'d0,'
+                    el = s.strip('0123456789')
+                    if self.J.has_key(el):
+                        print >>f, '  Hubbard_J(1,'+str(i+1)+')='+str(self.J[el])+'d0,'
 
+        ### &ELECTRONS ###
         print >>f,'/\n&ELECTRONS'
         try:
             diag = self.convergence['diag']
@@ -316,6 +362,7 @@ class espresso(Calculator):
             elif x=='mixing_mode':
                 print >>f, '  mixing_mode=\''+self.convergence[x]+'\','
 
+        ### &IONS ###
         print >>f, '/\n&IONS\n  ion_dynamics=\'ase3\',\n/'
 
         print >>f, 'CELL_PARAMETERS'
@@ -323,21 +370,14 @@ class espresso(Calculator):
             print >>f, '%21.15fd0 %21.15fd0 %21.15fd0' % (self.atoms.cell[i][0],self.atoms.cell[i][1],self.atoms.cell[i][2])
 
         print >>f, 'ATOMIC_SPECIES'
-        if self.spinpol:
-            for k in self.mkeys:
-                x = self.msym[k]
-                print >>f, x[0], x[1], x[0].strip('0123456789')+'.UPF'
-        else:
-            for x in self.species:
-                print >>f, x[0], x[1], x[0]+'.UPF'
+        for species in self.species:   # PSP ORDERING FOLLOWS SPECIESINDEX
+            el = species.strip('0123456789')
+            print >>f, species, self.specdict[el]['mass'][0], el+'.UPF'
+            print 
         
         print >>f, 'ATOMIC_POSITIONS {crystal}'
-        if self.spinpol:
-            for m,x in zip(self.smag,self.spos):
-                print >>f, '%-8s %21.15fd0 %21.15fd0 %21.15fd0' % (self.msym[m][0],x[1][0],x[1][1],x[1][2])
-        else:
-            for x in self.spos:
-                print >>f, '%-2s %21.15fd0 %21.15fd0 %21.15fd0' % (x[0],x[1][0],x[1][1],x[1][2])
+        for species, mass, magmom, pos in self.specprops:
+            print >>f, '%-4s %21.15fd0 %21.15fd0 %21.15fd0' % (species,pos[0],pos[1],pos[2])
         
         print >>f, 'K_POINTS automatic'
         print >>f, self.kpts[0], self.kpts[1],self.kpts[2],self.kptshift[0],self.kptshift[1],self.kptshift[2]
@@ -426,17 +466,19 @@ class espresso(Calculator):
     def initialize(self, atoms, calcstart=1):
         if not self.started:
             a = self.atoms
-            s = a.get_chemical_symbols()
-            m = a.get_masses()
-            sd = {}
-            for x in zip(s, m):
-                sd[x[0]] = x[1]
-            k = sd.keys()
-            k.sort()
-            self.species = [(x,sd[x]) for x in k]
-            self.nspec = len(self.species)
-            self.natoms = len(s)
-            self.spos = zip(s, a.get_scaled_positions())
+            
+            self.atoms2species()
+            #s = a.get_chemical_symbols()
+            #m = a.get_masses()
+            #sd = {}
+            #for x in zip(s, m):
+            #    sd[x[0]] = x[1]
+            #k = sd.keys()
+            #k.sort()
+            #self.species = [(x,sd[x]) for x in k] # UPDATE: NOT COMPATIBLE WITH MAGNETIC PARTS
+            #self.nspec = len(self.species)
+            self.natoms = len(self.atoms)
+            #self.spos = zip(s, a.get_scaled_positions()) # UPDATE to have species indices
             self.writeinputfile()
         if calcstart:
             self.start()
