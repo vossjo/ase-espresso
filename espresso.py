@@ -98,20 +98,26 @@ bohr = 0.52917721092
 rydberg_over_bohr = rydberg / bohr
 
 class espresso(Calculator):
+    """ Calculator object for Quantum Espresso.
+    See (default) inputs at  (http://www.quantum-espresso.org/wp-content/uploads/Doc/INPUT_PW.html)
+    """
     def __init__(self, pw=350.0, dw=3500.0, nbands=-10, 
-                 kpts=(1,1,1),kptshift=(0,0,0),
+                 kpts=(1,1,1), kptshift=(0,0,0),
+                 mode='relax', 
+                 calcstress=False, varycell='all',
                  xc='PBE', spinpol=False,
-                       outdir=None, calcstress=False,
-                       psppath=None, smearing='mv', sigma=0.2,
-                       U=None,J=None,
-                       tot_charge=0.0, # +1 means 1 e missing, -1 means 1 extra e
-                       dipole={'status':False},
-                       field={'status':False},
-                       output={'avoidio':False, 'removewf':True},
-                       convergence={'energy':5e-6,
-                                    'mixing':0.5,
-                                    'maxsteps':100,
-                                    'diag':'david'}):
+                 aexx=None, # fraction of exact exchange (has defaults for hybrids)
+                 outdir=None, 
+                 psppath=None, smearing='mv', sigma=0.2,
+                 U=None,J=None,
+                 tot_charge=0.0, # +1 means 1 e missing, -1 means 1 extra e
+                 dipole={'status':False},
+                 field={'status':False},
+                 output={'avoidio':False, 'removewf':True},
+                 convergence={'energy':5e-6,
+                              'mixing':0.5,
+                              'maxsteps':100,
+                              'diag':'david'}):
         
         self.batch = checkbatch()
         self.localtmp = mklocaltmp(self.batch, outdir)
@@ -129,13 +135,16 @@ class espresso(Calculator):
         self.nbands = nbands
         self.kpts = kpts
         self.kptshift = kptshift
+        self.calcmode = mode
+        self.calcstress = calcstress
+        self.varycell = varycell
         self.xc = xc
+        self.aexx = aexx
         self.smearing = smearing
         self.sigma = sigma
         self.spinpol = spinpol
         self.tot_charge = tot_charge
         self.outdir = outdir
-        self.calcstress = calcstress
         if psppath is None:
             try:
                 self.psppath = os.environ['ESP_PSP_PATH']
@@ -174,7 +183,7 @@ class espresso(Calculator):
         'magmoms' : a list with the number of unique magnetic moments, used to define # of species
         
         Constructs self.specprops which contain species labels, masses, magnetic moments, and positions.
-        Also defines self.species and self.nspecies.
+        Also defines self.species, self.nspecies, and self.natoms .
         """
         atypes = list( set(self.atoms.get_chemical_symbols()) )
         
@@ -215,7 +224,7 @@ class espresso(Calculator):
         self.species   = speciesindex
         self.nspecies  = len(self.species)
         self.specprops = specprops
-           
+        self.natoms    = len(self.atoms)   
     
     def writeinputfile(self):
         if self.atoms is None:
@@ -223,7 +232,7 @@ class espresso(Calculator):
         f = open(self.localtmp+'/pw.inp', 'w')
         
         ### &CONTROL ###
-        print >>f, '&CONTROL\n  calculation=\'relax\',\n  prefix=\'calc\','
+        print >>f, '&CONTROL\n  calculation=\''+self.calcmode+'\',\n  prefix=\'calc\','
         print >>f, '  pseudo_dir=\''+self.psppath+'\','
         print >>f, '  outdir=\'.\','
         efield = (self.field['status']==True)
@@ -233,7 +242,7 @@ class espresso(Calculator):
             if dipfield:
                 print >>f, '  dipfield=.true.,'
         print >>f, '  tprnfor=.true.,'
-        if self.calcstress:
+        if self.calcstress or self.calcmode.split('-')[0] == 'vc':
             print >>f, '  tstress=.true.,'
         if self.output is not None and self.output.has_key('avoidio'):
             if self.output['avoidio']:
@@ -244,7 +253,7 @@ class espresso(Calculator):
         print >>f, '  nat='+str(self.natoms)+','
         self.atoms2species() #self.convertmag2species()
         print >>f, '  ntyp='+str(self.nspecies)+',' #str(len(self.msym))+','
-        if not self.tot_charge:
+        if self.tot_charge != 0.0:
             print >>f, '  tot_charge='+str(self.tot_charge)+','
         print >>f, '  ecutwfc='+str(self.pw/rydberg)+'d0,'
         print >>f, '  ecutrho='+str(self.dw/rydberg)+'d0,'
@@ -277,6 +286,9 @@ class espresso(Calculator):
                 print >>f, '  starting_magnetization(%d)=%sd0,' % (spcount,mag)
                 spcount += 1
         print >>f, '  input_dft=\''+self.xc+'\','
+        if self.aexx is not None and self.xc in ['b3lyp','pbe0','hse']:
+            print >>f, '  exx_fraction='+str(self.aexx)+','
+        
         edir = 3
         if dipfield:
             try:
@@ -363,9 +375,14 @@ class espresso(Calculator):
                 print >>f, '  mixing_mode=\''+self.convergence[x]+'\','
 
         ### &IONS ###
-        print >>f, '/\n&IONS\n  ion_dynamics=\'ase3\',\n/'
+        print >>f, '/\n&IONS\n  ion_dynamics=\'ase3\','
+        ### &CELL ###
+        if self.calcmode.split('-')[0] == 'vc':
+            print >>f, '/\n&CELL\n  cell_dynamics=\'ase3\','
+            print >>f, '  cell_dofree=\''+self.varycell+'\','
+            self.calcstress=True # Defaults to true if variable cell calculation, so updates calculator value
 
-        print >>f, 'CELL_PARAMETERS'
+        print >>f, '/\nCELL_PARAMETERS'
         for i in range(3):
             print >>f, '%21.15fd0 %21.15fd0 %21.15fd0' % (self.atoms.cell[i][0],self.atoms.cell[i][1],self.atoms.cell[i][2])
 
@@ -412,6 +429,7 @@ class espresso(Calculator):
         return '0.1'
 
     def get_stress(self, atoms):
+        """ UPDATE: variable cell calculations interfaced with ASE (stress interface) """
         raise NotImplementedError, 'stress interface not implemented\ntry using QE\'s internal relaxation routines instead'
 
     def read(self, atoms):
@@ -464,21 +482,12 @@ class espresso(Calculator):
                 
 
     def initialize(self, atoms, calcstart=1):
-        if not self.started:
-            a = self.atoms
-            
+        """ Create the pw.inp input file and start the calculation. 
+        Can set calcstart=0 to only write the input file for manual submission.
+        If submitted without ase using pw.x executable, set 'ase3' to 'bfgs' in pw.inp input file. 
+        """
+        if not self.started:         
             self.atoms2species()
-            #s = a.get_chemical_symbols()
-            #m = a.get_masses()
-            #sd = {}
-            #for x in zip(s, m):
-            #    sd[x[0]] = x[1]
-            #k = sd.keys()
-            #k.sort()
-            #self.species = [(x,sd[x]) for x in k] # UPDATE: NOT COMPATIBLE WITH MAGNETIC PARTS
-            #self.nspec = len(self.species)
-            self.natoms = len(self.atoms)
-            #self.spos = zip(s, a.get_scaled_positions()) # UPDATE to have species indices
             self.writeinputfile()
         if calcstart:
             self.start()
