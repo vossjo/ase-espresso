@@ -117,18 +117,26 @@ class espresso(Calculator):
                  convergence={'energy':5e-6,
                               'mixing':0.5,
                               'maxsteps':100,
-                              'diag':'david'}):
+                              'diag':'david'},
+                onlycreatepwinp=None     #specify filename to only create pw input
+                ):
         
-        self.batch = checkbatch()
-        self.localtmp = mklocaltmp(self.batch, outdir)
-        if self.batch:
-            self.nodes,self.np = mpisetup(self.localtmp)
-        self.scratch = mkscratch(self.batch, self.localtmp)
-        if output is not None and output.has_key('removewf'):
-            removewf = output['removewf']
+        if onlycreatepwinp is None:
+            self.batch = checkbatch()
+            self.localtmp = mklocaltmp(self.batch, outdir)
+            if self.batch:
+                self.nodes,self.np = mpisetup(self.localtmp)
+            self.scratch = mkscratch(self.batch, self.localtmp)
+            if output is not None and output.has_key('removewf'):
+                removewf = output['removewf']
+            else:
+                removewf = True
+            atexit.register(cleanup, self.localtmp, self.scratch, removewf, self.batch, self)
+            self.cancalc = True
         else:
-            removewf = True
-        atexit.register(cleanup, self.localtmp, self.scratch, removewf, self.batch, self)
+            self.pwinp = onlycreatepwinp
+            self.localtmp=''
+            self.cancalc = False
         
         self.pw = pw
         self.dw = dw
@@ -193,14 +201,15 @@ class espresso(Calculator):
         
         #### CREATE DICTIONARY FOR EACH ATOM TYPE ####
         typedict = {}
+        inimag = self.atoms.get_initial_magnetic_moments()
         for atype in atypes:
             typedict[atype] = {}
             maglist  = []
             masslist = []
             Ulist    = []
-            for atom in self.atoms:
+            for atom,im in zip(self.atoms,inimag):
                 if atom.symbol == atype:
-                    maglist.append(atom.get_initial_magnetic_moment())
+                    maglist.append(im)
                     masslist.append(atom.mass)
             typedict[atype]['magmoms'] = list( set(maglist) )
             typedict[atype]['mass'] = list( set(masslist) )
@@ -229,7 +238,10 @@ class espresso(Calculator):
     def writeinputfile(self):
         if self.atoms is None:
             raise ValueError, 'no atoms defined'
-        f = open(self.localtmp+'/pw.inp', 'w')
+        if self.cancalc:
+            f = open(self.localtmp+'/pw.inp', 'w')
+        else:
+            f = open(self.pwinp, 'w')
         
         ### &CONTROL ###
         print >>f, '&CONTROL\n  calculation=\''+self.calcmode+'\',\n  prefix=\'calc\','
@@ -375,7 +387,10 @@ class espresso(Calculator):
                 print >>f, '  mixing_mode=\''+self.convergence[x]+'\','
 
         ### &IONS ###
-        print >>f, '/\n&IONS\n  ion_dynamics=\'ase3\','
+        if self.cancalc:
+            print >>f, '/\n&IONS\n  ion_dynamics=\'ase3\','
+        else:
+            print >>f, '/\n&IONS\n  ion_dynamics=\'bfgs\','
         ### &CELL ###
         if self.calcmode.split('-')[0] == 'vc':
             print >>f, '/\n&CELL\n  cell_dynamics=\'ase3\','
@@ -481,15 +496,16 @@ class espresso(Calculator):
             s.close()
                 
 
-    def initialize(self, atoms, calcstart=1):
+    def initialize(self, atoms):
         """ Create the pw.inp input file and start the calculation. 
-        Can set calcstart=0 to only write the input file for manual submission.
+        If onlycreatepwinp is specified in calculator setup,
+        only the input file will be written for manual submission.
         If submitted without ase using pw.x executable, set 'ase3' to 'bfgs' in pw.inp input file. 
         """
         if not self.started:         
             self.atoms2species()
             self.writeinputfile()
-        if calcstart:
+        if self.cancalc:
             self.start()
     
     def start(self):

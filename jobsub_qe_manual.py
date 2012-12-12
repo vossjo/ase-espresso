@@ -46,15 +46,7 @@ print "submitting with "+subcmd
 
 file = open(jobfile,'w')
 file.write("""#!/bin/sh
-export PATH=/nfs/slac/g/suncatfs/vossj/rt/bin:/afs/slac/package/lsf/6.1/bin:$PATH
-export LD_LIBRARY_PATH=/nfs/slac/g/suncatfs/vossj/rt/lib:$LD_LIBRARY_PATH
-cd $LS_SUBCWD
-echo -e $LSB_HOSTS | sed s/" "/"\\n"/g >machinefile
-uniq machinefile >uniqmachinefile
-nodes=`wc -l <uniqmachinefile`
-np=`wc -l <machinefile`
-alias perHostMpiExec='mpiexec --mca plm_rsh_agent /afs/slac.stanford.edu/package/lsf/bin.slac/gmmpirun_lsgrun.sh -machinefile uniqmachinefile -np $nodes'
-alias perProcMpiExec='mpiexec --mca plm_rsh_agent /afs/slac.stanford.edu/package/lsf/bin.slac/gmmpirun_lsgrun.sh -machinefile machinefile -np $np'
+. /nfs/slac/g/suncatfs/vossj/bashspresso.sh
 JOBTMP=/scratch/JOB$LSB_BATCH_JID
 perHostMpiExec mkdir $JOBTMP
 #add -r to copy if subdirectories are needed to setup job
@@ -79,4 +71,4 @@ if os.path.isfile(os.path.join(os.getcwd(),'pw.inp')):
     else:
         print "incorrect executable path, executable does not exist!"
 else:
-    print "intialize pw.inp first (generate from ase with calc.initialize(atoms,calcstart=0))"
+    print "intialize pw.inp first (generate from ase with espresso(..., onlycreatepwinp=\'filename\') and calc.initialize(atoms))"
