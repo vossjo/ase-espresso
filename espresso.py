@@ -111,6 +111,7 @@ class espresso(Calculator):
                  psppath=None, smearing='mv', sigma=0.2,
                  U=None,J=None,
                  tot_charge=0.0, # +1 means 1 e missing, -1 means 1 extra e
+                 tot_magnetization=-1,#-1 means unspecified
                  dipole={'status':False},
                  field={'status':False},
                  output={'avoidio':False, 'removewf':True},
@@ -137,7 +138,7 @@ class espresso(Calculator):
             self.pwinp = onlycreatepwinp
             self.localtmp=''
             self.cancalc = False
-        
+               
         self.pw = pw
         self.dw = dw
         self.nbands = nbands
@@ -152,6 +153,7 @@ class espresso(Calculator):
         self.sigma = sigma
         self.spinpol = spinpol
         self.tot_charge = tot_charge
+        self.tot_magnetization = tot_magnetization
         self.outdir = outdir
         if psppath is None:
             try:
@@ -267,6 +269,8 @@ class espresso(Calculator):
         print >>f, '  ntyp='+str(self.nspecies)+',' #str(len(self.msym))+','
         if self.tot_charge != 0.0:
             print >>f, '  tot_charge='+str(self.tot_charge)+','
+        if self.tot_magnetization != -1: 
+            print >>f, '  tot_magnetization='+str(self.tot_magnetization)+','
         print >>f, '  ecutwfc='+str(self.pw/rydberg)+'d0,'
         print >>f, '  ecutrho='+str(self.dw/rydberg)+'d0,'
         if self.nbands is not None:
