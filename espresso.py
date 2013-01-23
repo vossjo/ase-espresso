@@ -91,6 +91,37 @@ def getsubmitorcurrentdir():
     else:
         return os.getcwd()
 
+def uniqueness(list1, list2):
+    """
+    Find the elements that are belonging to a group in both list1 and list2,
+    where a group is defines as 2 or more elements that share the same
+    value. 
+    """
+    assert len(list1) == len(list2)
+    l1_u = np.unique(list1)
+    l2_u = np.unique(list2)
+    unique = np.zeros(len(list1))
+    kk = 0
+    for u_l1 in l1_u:
+        list1 == u_l1
+        UK1 = np.where(list1 == u_l1)[0]
+        UL1 = [pp in UK1 for pp in range(len(list1))]
+        for u_l2 in l2_u:
+            UK2 = np.where(list2 == u_l2)[0]
+            UL2 = [pp in UK2 for pp in range(len(list1))]
+            UUL = [UL1[pp]*UL2[pp] for pp in range(len(list1))]
+            #print u_l1, u_l2, UL1, UL2, UUL # for debugging
+            if len(np.where(np.array(UUL) != 0)[0]) == 0:
+                continue 
+            kk += 1
+            unique += [kk*UUL[pp] for pp in range(len(list1))]
+    # fill out zeros
+    umax = np.max(unique)
+    zeros = np.where(unique==0)[0]
+    for ppk, pp in enumerate(zeros):
+        unique[pp] += ppk+umax
+    return unique.astype(int)
+
 
 hartree = 27.21138505
 rydberg = 0.5*hartree
@@ -98,63 +129,46 @@ bohr = 0.52917721092
 rydberg_over_bohr = rydberg / bohr
 
 class espresso(Calculator):
-    """ Calculator object for Quantum Espresso.
-    See (default) inputs at  (http://www.quantum-espresso.org/wp-content/uploads/Doc/INPUT_PW.html)
-    """
     def __init__(self, pw=350.0, dw=3500.0, nbands=-10, 
-                 kpts=(1,1,1), kptshift=(0,0,0),
-                 mode='relax', 
-                 calcstress=False, varycell='all',
+                 kpts=(1,1,1),kptshift=(0,0,0),
                  xc='PBE', spinpol=False,
-                 aexx=None, # fraction of exact exchange (has defaults for hybrids)
-                 outdir=None, 
-                 psppath=None, smearing='mv', sigma=0.2,
-                 U=None,J=None,
-                 tot_charge=0.0, # +1 means 1 e missing, -1 means 1 extra e
-                 tot_magnetization=-1,#-1 means unspecified
-                 dipole={'status':False},
-                 field={'status':False},
-                 output={'avoidio':False, 'removewf':True},
-                 convergence={'energy':5e-6,
-                              'mixing':0.5,
-                              'maxsteps':100,
-                              'diag':'david'},
-                onlycreatepwinp=None     #specify filename to only create pw input
-                ):
+                       outdir=None, calcstress=False,
+                       psppath=None, smearing='mv', sigma=0.2,
+                       U=None,J=None,U_alpha=None,
+                       tot_charge=0.0, # +1 means 1 e missing, -1 means 1 extra e
+                       tot_magnetization=-1,#-1 means unspecified
+                       dipole={'status':False},
+                       field={'status':False},
+                       output={'avoidio':False, 'removewf':True},
+                       convergence={'energy':5e-6,
+                                   'mixing':0.5,
+                                    'maxsteps':100,
+                                    'diag':'david'}):
         
-        if onlycreatepwinp is None:
-            self.batch = checkbatch()
-            self.localtmp = mklocaltmp(self.batch, outdir)
-            if self.batch:
-                self.nodes,self.np = mpisetup(self.localtmp)
-            self.scratch = mkscratch(self.batch, self.localtmp)
-            if output is not None and output.has_key('removewf'):
-                removewf = output['removewf']
-            else:
-                removewf = True
-            atexit.register(cleanup, self.localtmp, self.scratch, removewf, self.batch, self)
-            self.cancalc = True
+        self.batch = checkbatch()
+        self.localtmp = mklocaltmp(self.batch, outdir)
+        if self.batch:
+            self.nodes,self.np = mpisetup(self.localtmp)
+        self.scratch = mkscratch(self.batch, self.localtmp)
+        if output is not None and output.has_key('removewf'):
+            removewf = output['removewf']
         else:
-            self.pwinp = onlycreatepwinp
-            self.localtmp=''
-            self.cancalc = False
-               
+            removewf = True
+        atexit.register(cleanup, self.localtmp, self.scratch, removewf, self.batch, self)
+        
         self.pw = pw
         self.dw = dw
         self.nbands = nbands
         self.kpts = kpts
         self.kptshift = kptshift
-        self.calcmode = mode
-        self.calcstress = calcstress
-        self.varycell = varycell
         self.xc = xc
-        self.aexx = aexx
         self.smearing = smearing
         self.sigma = sigma
         self.spinpol = spinpol
         self.tot_charge = tot_charge
         self.tot_magnetization = tot_magnetization
         self.outdir = outdir
+        self.calcstress = calcstress
         if psppath is None:
             try:
                 self.psppath = os.environ['ESP_PSP_PATH']
@@ -175,6 +189,7 @@ class espresso(Calculator):
         self.convergence = convergence
         self.U = U
         self.J = J
+        self.U_alpha = U_alpha
         self.atoms = None
         self.started = False
 
@@ -193,7 +208,7 @@ class espresso(Calculator):
         'magmoms' : a list with the number of unique magnetic moments, used to define # of species
         
         Constructs self.specprops which contain species labels, masses, magnetic moments, and positions.
-        Also defines self.species, self.nspecies, and self.natoms .
+        Also defines self.species and self.nspecies.
         """
         atypes = list( set(self.atoms.get_chemical_symbols()) )
         
@@ -203,50 +218,94 @@ class espresso(Calculator):
         
         #### CREATE DICTIONARY FOR EACH ATOM TYPE ####
         typedict = {}
-        inimag = self.atoms.get_initial_magnetic_moments()
         for atype in atypes:
             typedict[atype] = {}
             maglist  = []
             masslist = []
             Ulist    = []
-            for atom,im in zip(self.atoms,inimag):
+            Jlist    = []
+            U_alphalist = []
+            for i, atom in enumerate(self.atoms):
                 if atom.symbol == atype:
-                    maglist.append(im)
+                    maglist.append(atom.magmom)
                     masslist.append(atom.mass)
+                    if self.U is not None:
+                        if i in self.U:
+                            Ulist.append(self.U[i])
+                        elif atom.symbol in self.U:
+                            Ulist.append(self.U[atom.symbol])
+                        else:
+                            Ulist.append(0.)
+                    if self.J is not None:
+                        if i in self.J:
+                            Jlist.append(self.J[i])
+                        elif atom.symbol in self.J:                          
+                            Jlist.append(self.J[atom.symbol])
+                        else:
+                            Jlist.append(0.)
+                    if self.U_alpha is not None:
+                        if i in self.U_alpha:
+                            U_alphalist.append(self.U_alpha[i])
+                        elif atom.symbol in self.U_alpha:
+                            U_alphalist.append(self.U_alpha[atom.symbol])
+                        else:
+                            U_alphalist.append(0.)
+            
             typedict[atype]['magmoms'] = list( set(maglist) )
             typedict[atype]['mass'] = list( set(masslist) )
+            #### uniqueness identify which atoms of same type that are unique
+            un = uniqueness(maglist,masslist)
+            if self.U is not None:
+                typedict[atype]['U'] = list( set(Ulist))
+                un = uniqueness(un,Ulist)
+            if self.J is not None:
+                typedict[atype]['J'] = list( set(Jlist))
+                un = uniqueness(un,Jlist)
+            if self.U_alpha is not None:
+                typedict[atype]['U_alpha'] = list( set(U_alpha))
+                un = uniqueness(un,U_alphalist)
+            typedict[atype]['indexes']=[int(kk) for kk in un]
 
-        #### CREATE INDICES FOR EACH ATOM TYPE UNIQUE MAGMOM, STARTING AT 1 ####
+
+        #### CREATE INDICES FOR EACH ATOM TYPE WITH A UNIQUE SET OF MAGMOM, U, 
+        ##   J, U_alpha STARTING AT 1 ####
+
+
         speciesindex = []
         for type, info in typedict.iteritems():
-            tcount = 1
-            for mag in info['magmoms']:
-                speciesindex.append(type+str(tcount))
-                tcount += 1
-
+            for val in info['indexes']:
+                speciesindex.append(type+str(val))
+        """
+        for type, info in typedict.iteritems():
+            for num in 
+            #tcount = 1
+            #for mag in info['magmoms']:
+            #    speciesindex.append(type+str(tcount))
+            #    tcount += 1
+        """
         #### UPDATE THE SPECIES PROPERTIES TO INCLUDE THE SPECIES ID #####
         specprops = []
-        for a in aprops:
-            for i, mag in enumerate(typedict[a[0]]['magmoms']):
-                if mag == a[2]:
-                    specprops.append( (a[0]+str(i+1),a[1],a[2],a[3]) )
-
+        index_counter = np.zeros(len(atypes)).astype(int)
+        jj = 0
+        for ii, a in enumerate(aprops):
+            atypeindex = np.where(np.array(atypes)==a[0])[0][0]
+            index = typedict[a[0]]['indexes'][index_counter[atypeindex]]
+            specprops.append( (a[0]+str(index),a[1],a[2],a[3]))
+            index_counter[atypeindex]+=1
+        
         self.specdict  = typedict
-        self.species   = speciesindex
+        self.species   = np.unique(speciesindex)
         self.nspecies  = len(self.species)
         self.specprops = specprops
-        self.natoms    = len(self.atoms)   
+           
     
     def writeinputfile(self):
         if self.atoms is None:
             raise ValueError, 'no atoms defined'
-        if self.cancalc:
-            f = open(self.localtmp+'/pw.inp', 'w')
-        else:
-            f = open(self.pwinp, 'w')
+        f = open(self.localtmp+'/pw.inp', 'w')
         
         ### &CONTROL ###
-        print >>f, '&CONTROL\n  calculation=\''+self.calcmode+'\',\n  prefix=\'calc\','
+        print >>f, '&CONTROL\n  calculation=\'relax\',\n  prefix=\'calc\','
         print >>f, '  pseudo_dir=\''+self.psppath+'\','
         print >>f, '  outdir=\'.\','
         efield = (self.field['status']==True)
@@ -256,7 +315,7 @@ class espresso(Calculator):
             if dipfield:
                 print >>f, '  dipfield=.true.,'
         print >>f, '  tprnfor=.true.,'
-        if self.calcstress or self.calcmode.split('-')[0] == 'vc':
+        if self.calcstress:
             print >>f, '  tstress=.true.,'
         if self.output is not None and self.output.has_key('avoidio'):
             if self.output['avoidio']:
@@ -267,10 +326,11 @@ class espresso(Calculator):
         print >>f, '  nat='+str(self.natoms)+','
         self.atoms2species() #self.convertmag2species()
         print >>f, '  ntyp='+str(self.nspecies)+',' #str(len(self.msym))+','
-        if self.tot_charge != 0.0:
+        if not self.tot_charge:
             print >>f, '  tot_charge='+str(self.tot_charge)+','
-        if self.tot_magnetization != -1: 
+        if self.tot_magnetization != -1:
             print >>f, '  tot_magnetization='+str(self.tot_magnetization)+','
+
         print >>f, '  ecutwfc='+str(self.pw/rydberg)+'d0,'
         print >>f, '  ecutrho='+str(self.dw/rydberg)+'d0,'
         if self.nbands is not None:
@@ -302,9 +362,6 @@ class espresso(Calculator):
                 print >>f, '  starting_magnetization(%d)=%sd0,' % (spcount,mag)
                 spcount += 1
         print >>f, '  input_dft=\''+self.xc+'\','
-        if self.aexx is not None and self.xc in ['b3lyp','pbe0','hse']:
-            print >>f, '  exx_fraction='+str(self.aexx)+','
-        
         edir = 3
         if dipfield:
             try:
@@ -358,14 +415,25 @@ class espresso(Calculator):
                 print >>f, '  lda_plus_u_kind=0,'
             for i,s in enumerate(self.species):
                 el = s.strip('0123456789')
-                if self.U.has_key(el):
+                if self.U.has_key(i):
+                    print >>f, '  Hubbard_U('+str(i+1)+')='+str(self.U[i])+'d0,'
+                elif self.U.has_key(el):
                     print >>f, '  Hubbard_U('+str(i+1)+')='+str(self.U[el])+'d0,'
+
             if self.J is not None:
                 for i,s in enumerate(self.species):
                     el = s.strip('0123456789')
-                    if self.J.has_key(el):
+                    if self.J.has_key(i):
+                        print >>f, '  Hubbard_J(1,'+str(i+1)+')='+str(self.J[i])+'d0,'
+                    elif self.J.has_key(el):
                         print >>f, '  Hubbard_J(1,'+str(i+1)+')='+str(self.J[el])+'d0,'
-
+            if self.U_alpha is not None:
+                for i, s in enumerate(self.species):
+                    el = s.strip('0123456789')
+                    if self.U_alpha.has_key(i):
+                        print >>f, ' Hubbard_alpha(1,'+str(i+1)+')='+str(self.U_alpha[i])+'d0,'
+                    elif self.U_alpha.has_key(el):
+                        print >>f, ' Hubbard_alpha(1,'+str(i+1)+')='+str(self.U_alpha[el])+'d0,'
         ### &ELECTRONS ###
         print >>f,'/\n&ELECTRONS'
         try:
@@ -391,17 +459,9 @@ class espresso(Calculator):
                 print >>f, '  mixing_mode=\''+self.convergence[x]+'\','
 
         ### &IONS ###
-        if self.cancalc:
-            print >>f, '/\n&IONS\n  ion_dynamics=\'ase3\','
-        else:
-            print >>f, '/\n&IONS\n  ion_dynamics=\'bfgs\','
-        ### &CELL ###
-        if self.calcmode.split('-')[0] == 'vc':
-            print >>f, '/\n&CELL\n  cell_dynamics=\'ase3\','
-            print >>f, '  cell_dofree=\''+self.varycell+'\','
-            self.calcstress=True # Defaults to true if variable cell calculation, so updates calculator value
+        print >>f, '/\n&IONS\n  ion_dynamics=\'ase3\',\n/'
 
-        print >>f, '/\nCELL_PARAMETERS'
+        print >>f, 'CELL_PARAMETERS'
         for i in range(3):
             print >>f, '%21.15fd0 %21.15fd0 %21.15fd0' % (self.atoms.cell[i][0],self.atoms.cell[i][1],self.atoms.cell[i][2])
 
@@ -448,7 +508,6 @@ class espresso(Calculator):
         return '0.1'
 
     def get_stress(self, atoms):
-        """ UPDATE: variable cell calculations interfaced with ASE (stress interface) """
         raise NotImplementedError, 'stress interface not implemented\ntry using QE\'s internal relaxation routines instead'
 
     def read(self, atoms):
@@ -500,16 +559,24 @@ class espresso(Calculator):
             s.close()
                 
 
-    def initialize(self, atoms):
-        """ Create the pw.inp input file and start the calculation. 
-        If onlycreatepwinp is specified in calculator setup,
-        only the input file will be written for manual submission.
-        If submitted without ase using pw.x executable, set 'ase3' to 'bfgs' in pw.inp input file. 
-        """
-        if not self.started:         
+    def initialize(self, atoms, calcstart=1):
+        if not self.started:
+            a = self.atoms
+            
             self.atoms2species()
+            #s = a.get_chemical_symbols()
+            #m = a.get_masses()
+            #sd = {}
+            #for x in zip(s, m):
+            #    sd[x[0]] = x[1]
+            #k = sd.keys()
+            #k.sort()
+            #self.species = [(x,sd[x]) for x in k] # UPDATE: NOT COMPATIBLE WITH MAGNETIC PARTS
+            #self.nspec = len(self.species)
+            self.natoms = len(self.atoms)
+            #self.spos = zip(s, a.get_scaled_positions()) # UPDATE to have species indices
             self.writeinputfile()
-        if self.cancalc:
+        if calcstart:
             self.start()
     
     def start(self):
