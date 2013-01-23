@@ -262,7 +262,7 @@ class espresso(Calculator):
                 typedict[atype]['J'] = list( set(Jlist))
                 un = uniqueness(un,Jlist)
             if self.U_alpha is not None:
-                typedict[atype]['U_alpha'] = list( set(U_alpha))
+                typedict[atype]['U_alpha'] = list( set(U_alphalist))
                 un = uniqueness(un,U_alphalist)
             typedict[atype]['indexes']=[int(kk) for kk in un]
 
