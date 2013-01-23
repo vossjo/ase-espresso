@@ -407,19 +407,21 @@ class espresso(Calculator):
             print >>f, '  emaxpos2='+str(emaxpos)+'d0,'
             print >>f, '  eopreg2='+str(eopreg)+'d0,'
             print >>f, '  eamp2='+str(eamp)+'d0,'
-        if self.U is not None:
+        if self.U is not None or self.J is not None or self.U_alpha is not None:
             print >>f, '  lda_plus_u=.true.,'
             if self.J is not None:
                 print >>f, '  lda_plus_u_kind=1,'
             else:
                 print >>f, '  lda_plus_u_kind=0,'
-            for i,s in enumerate(self.species):
-                el = s.strip('0123456789')
-                if self.U.has_key(i):
-                    print >>f, '  Hubbard_U('+str(i+1)+')='+str(self.U[i])+'d0,'
-                elif self.U.has_key(el):
-                    print >>f, '  Hubbard_U('+str(i+1)+')='+str(self.U[el])+'d0,'
-
+            if self.U is not None:
+                for i,s in enumerate(self.species):
+                    el = s.strip('0123456789')
+                    if self.U.has_key(i):
+                        print >>f, '  Hubbard_U('+str(i+1)+')='+str(self.U[i])+'d0,'
+                    elif self.U.has_key(el):
+                        print >>f, '  Hubbard_U('+str(i+1)+')='+str(self.U[el])+'d0,'
+                    else:
+                        print >>f, '  Hubbard_U('+str(i+1)+')=1D-40'
             if self.J is not None:
                 for i,s in enumerate(self.species):
                     el = s.strip('0123456789')
@@ -431,9 +433,11 @@ class espresso(Calculator):
                 for i, s in enumerate(self.species):
                     el = s.strip('0123456789')
                     if self.U_alpha.has_key(i):
-                        print >>f, ' Hubbard_alpha(1,'+str(i+1)+')='+str(self.U_alpha[i])+'d0,'
+                        print >>f, '  Hubbard_alpha('+str(i+1)+')='+str(self.U_alpha[i])+'d0,'
                     elif self.U_alpha.has_key(el):
-                        print >>f, ' Hubbard_alpha(1,'+str(i+1)+')='+str(self.U_alpha[el])+'d0,'
+                        print >>f, '  Hubbard_alpha('+str(i+1)+')='+str(self.U_alpha[el])+'d0,'
+                    else:
+                        print >>f, '  Hubbard_alpha('+str(i+1)+')=1D-40' 
         ### &ELECTRONS ###
         print >>f,'/\n&ELECTRONS'
         try:
