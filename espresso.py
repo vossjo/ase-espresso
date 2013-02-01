@@ -227,7 +227,10 @@ class espresso(Calculator):
             U_alphalist = []
             for i, atom in enumerate(self.atoms):
                 if atom.symbol == atype:
-                    maglist.append(atom.magmom)
+                    if self.spinpol:
+                        maglist.append(atom.magmom)
+                    else:
+                        maglist.append(0.)
                     masslist.append(atom.mass)
                     if self.U is not None:
                         if i in self.U:
@@ -349,9 +352,12 @@ class espresso(Calculator):
                 if not self.spinpol:
                     n /= 2
                 print >>f, '  nbnd='+str(n-self.nbands)+','
-        print >>f, '  occupations=\'smearing\','
-        print >>f, '  smearing=\''+self.smearing+'\','
-        print >>f, '  degauss='+str(self.sigma/rydberg)+'d0,'
+        if abs(self.sigma)>1E-14:
+            print >>f, '  occupations=\'smearing\','
+            print >>f, '  smearing=\''+self.smearing+'\','
+            print >>f, '  degauss='+str(self.sigma/rydberg)+'d0,'
+        else:
+            print >>f, '  occupations=\'fixed\','            
         if self.spinpol:
             print >>f, '  nspin=2,'
             spcount  = 1
