@@ -98,6 +98,9 @@ def uniqueness(list1, list2):
     value. 
     """
     assert len(list1) == len(list2)
+    if len(list1)==1:
+        return [1]
+    print list1, list2
     l1_u = np.unique(list1)
     l2_u = np.unique(list2)
     unique = np.zeros(len(list1))
@@ -107,6 +110,7 @@ def uniqueness(list1, list2):
         UK1 = np.where(list1 == u_l1)[0]
         UL1 = [pp in UK1 for pp in range(len(list1))]
         for u_l2 in l2_u:
+            print list2, u_l2, np.where(list2 == u_l2)
             UK2 = np.where(list2 == u_l2)[0]
             UL2 = [pp in UK2 for pp in range(len(list1))]
             UUL = [UL1[pp]*UL2[pp] for pp in range(len(list1))]
@@ -131,12 +135,14 @@ rydberg_over_bohr = rydberg / bohr
 class espresso(Calculator):
     def __init__(self, pw=350.0, dw=3500.0, nbands=-10, 
                  kpts=(1,1,1),kptshift=(0,0,0),
+                 mode='relax',
                  xc='PBE', spinpol=False,
                        outdir=None, calcstress=False,
                        psppath=None, smearing='mv', sigma=0.2,
-                       U=None,J=None,U_alpha=None,
+                       U=None,J=None,U_alpha=None,U_projection_type='atomic',
                        tot_charge=0.0, # +1 means 1 e missing, -1 means 1 extra e
                        tot_magnetization=-1,#-1 means unspecified
+                       occupations='smearing',#'smearing', 'fixed', 
                        dipole={'status':False},
                        field={'status':False},
                        output={'avoidio':False, 'removewf':True},
@@ -161,12 +167,14 @@ class espresso(Calculator):
         self.nbands = nbands
         self.kpts = kpts
         self.kptshift = kptshift
+        self.calcmode = mode
         self.xc = xc
         self.smearing = smearing
         self.sigma = sigma
         self.spinpol = spinpol
         self.tot_charge = tot_charge
         self.tot_magnetization = tot_magnetization
+        self.occupations = occupations
         self.outdir = outdir
         self.calcstress = calcstress
         if psppath is None:
@@ -190,6 +198,7 @@ class espresso(Calculator):
         self.U = U
         self.J = J
         self.U_alpha = U_alpha
+        self.U_projection_type = U_projection_type
         self.atoms = None
         self.started = False
 
@@ -227,10 +236,7 @@ class espresso(Calculator):
             U_alphalist = []
             for i, atom in enumerate(self.atoms):
                 if atom.symbol == atype:
-                    if self.spinpol:
-                        maglist.append(atom.magmom)
-                    else:
-                        maglist.append(0.)
+                    maglist.append(atom.magmom)
                     masslist.append(atom.mass)
                     if self.U is not None:
                         if i in self.U:
@@ -308,7 +314,7 @@ class espresso(Calculator):
         f = open(self.localtmp+'/pw.inp', 'w')
         
         ### &CONTROL ###
-        print >>f, '&CONTROL\n  calculation=\'relax\',\n  prefix=\'calc\','
+        print >>f, '&CONTROL\n  calculation=\''+self.calcmode+'\',\n  prefix=\'calc\','
         print >>f, '  pseudo_dir=\''+self.psppath+'\','
         print >>f, '  outdir=\'.\','
         efield = (self.field['status']==True)
@@ -317,12 +323,13 @@ class espresso(Calculator):
             print >>f, '  tefield=.true.,'
             if dipfield:
                 print >>f, '  dipfield=.true.,'
-        print >>f, '  tprnfor=.true.,'
-        if self.calcstress:
-            print >>f, '  tstress=.true.,'
-        if self.output is not None and self.output.has_key('avoidio'):
-            if self.output['avoidio']:
-                print >>f, '  disk_io=\'none\','
+        if self.U_projection_type is 'atomic':
+            print >>f, '  tprnfor=.true.,'
+            if self.calcstress:
+                print >>f, '  tstress=.true.,'
+            if self.output is not None and self.output.has_key('avoidio'):
+                if self.output['avoidio']:
+                    print >>f, '  disk_io=\'none\','
 
         ### &SYSTEM ###
         print >>f, '/\n&SYSTEM\n  ibrav=0,\n  celldm(1)=1.8897261245650618d0,'
@@ -352,12 +359,9 @@ class espresso(Calculator):
                 if not self.spinpol:
                     n /= 2
                 print >>f, '  nbnd='+str(n-self.nbands)+','
-        if abs(self.sigma)>1E-14:
-            print >>f, '  occupations=\'smearing\','
-            print >>f, '  smearing=\''+self.smearing+'\','
-            print >>f, '  degauss='+str(self.sigma/rydberg)+'d0,'
-        else:
-            print >>f, '  occupations=\'fixed\','            
+        print >>f, '  occupations=%s,'% self.occupations
+        print >>f, '  smearing=\''+self.smearing+'\','
+        print >>f, '  degauss='+str(self.sigma/rydberg)+'d0,'
         if self.spinpol:
             print >>f, '  nspin=2,'
             spcount  = 1
@@ -419,31 +423,57 @@ class espresso(Calculator):
                 print >>f, '  lda_plus_u_kind=1,'
             else:
                 print >>f, '  lda_plus_u_kind=0,'
+            print >>f, '  U_projection_type=\"%s\",' % (self.U_projection_type)
             if self.U is not None:
                 for i,s in enumerate(self.species):
                     el = s.strip('0123456789')
                     if self.U.has_key(i):
-                        print >>f, '  Hubbard_U('+str(i+1)+')='+str(self.U[i])+'d0,'
+                        Ui = self.U[i]
                     elif self.U.has_key(el):
-                        print >>f, '  Hubbard_U('+str(i+1)+')='+str(self.U[el])+'d0,'
+                        Ui = self.U[el]
                     else:
-                        print >>f, '  Hubbard_U('+str(i+1)+')=1D-40'
+                        Ui = '1D-40'
+                    if 'D' in Ui or 'd' in Ui or 'E' in Ui or 'e' in Ui:
+                        print >>f, '  Hubbard_U('+str(i+1)+')='+str(Ui)+','
+                    else:
+                        print >>f, '  Hubbard_U('+str(i+1)+')='+str(Ui)+'d0,'
             if self.J is not None:
                 for i,s in enumerate(self.species):
                     el = s.strip('0123456789')
-                    if self.J.has_key(i):
-                        print >>f, '  Hubbard_J(1,'+str(i+1)+')='+str(self.J[i])+'d0,'
-                    elif self.J.has_key(el):
-                        print >>f, '  Hubbard_J(1,'+str(i+1)+')='+str(self.J[el])+'d0,'
+                    Ji ='KK'
+                    if self.U.has_key(i):
+                         Ji = self.J[i]
+                    elif self.U.has_key(el):
+                         Ji = self.J[el]
+                    if Ji != 'KK':
+                        if 'D' in Ji or 'd' in Ji or 'E' in Ji or 'e' in Ji:
+                            print >>f, '  Hubbard_J('+str(i+1)+')='+str(Ji)+','
+                        else:
+                            print >>f, '  Hubbard_J('+str(i+1)+')='+str(Ji)+'d0,'
             if self.U_alpha is not None:
                 for i, s in enumerate(self.species):
                     el = s.strip('0123456789')
+                    if self.U_alpha.has_key(i):
+                         U_alphai = self.U_alpha[i]
+                    elif self.U.has_key(el):
+                         U_alphai = self.U_alpha[el]
+                    else:
+                         U_alphai = '1D-40'
+                    if isinstance(U_alphai, str) and ('D' in U_alphai or 'd' in U_alphai or 
+                        'E' in U_alphai or 'e' in U_alphai):
+                         print >>f, '  Hubbard_alpha('+str(i+1)+')='+str(U_alphai)+','
+                    else:
+                         print >>f, '  Hubbard_alpha('+str(i+1)+')='+str(U_alphai)+'d0,'
+
+
+                    """
                     if self.U_alpha.has_key(i):
                         print >>f, '  Hubbard_alpha('+str(i+1)+')='+str(self.U_alpha[i])+'d0,'
                     elif self.U_alpha.has_key(el):
                         print >>f, '  Hubbard_alpha('+str(i+1)+')='+str(self.U_alpha[el])+'d0,'
                     else:
-                        print >>f, '  Hubbard_alpha('+str(i+1)+')=1D-40' 
+                        print >>f, '  Hubbard_alpha('+str(i+1)+')=1D-40'
+                    """
         ### &ELECTRONS ###
         print >>f,'/\n&ELECTRONS'
         try:
@@ -536,15 +566,50 @@ class espresso(Calculator):
             s = open(self.localtmp+'/log','a')
             a = self.cout.readline()
             s.write(a)
-            while a!='' and a[:17]!='!    total energy' and a[:13]!='     stopping':
+            atom_occ = {}
+            while a!='' and a[:17]!='!    total energy' and a[:13]!='     stopping': 
                 a = self.cout.readline()
                 s.write(a)
                 s.flush()
+                
+                if a[:19]=='     iteration #  1':
+                    while (a!='' and a[:17]!='!    total energy' and a[:13]!='     stopping' and 
+                           a[:22]!=' --- exit write_ns ---' ) :
+                        a = self.cout.readline()   
+                        s.write(a)
+                        s.flush()
+                        if a[:5]=='atom ':
+                            atomnum = int(a[8:10])
+                            if a[12:25]=='Tr[ns(na)] = ':#'atom    1   Tr[ns(na)] =   1.00000'
+                                N0 = float(a[27:35])/2.
+                            elif a[12:42]=='Tr[ns(na)] (up, down, total) =':
+                                #'   4.20435  1.27943  5.48377'
+                                N0 = [float(a[42:52]), float(a[53:62]), float(a[63:71])]
+                                N0=N0[-1] # only taking the total occupation
+                            atom_occ[atomnum-1]={}
+                            atom_occ[atomnum-1][0]=N0
+                if a[:39]=='     End of self-consistent calculation':
+                    while a!='' and a[:17]!='!    total energy' and a[:13]!='     stopping':
+                        a = self.cout.readline()
+                        s.write(a) 
+                        s.flush()
+                        if a[:5]=='atom ':
+                            atomnum = int(a[8:10])
+                            if a[12:25]=='Tr[ns(na)] = ':#'atom    1   Tr[ns(na)] =   1.00000'
+                                Nks = float(a[27:35])/2.
+                            elif a[12:42]=='Tr[ns(na)] (up, down, total) =':
+                                #'   4.20435  1.27943  5.48377'
+                                Nks = [float(a[42:52]), float(a[53:62]), float(a[63:71])]
+                                Nks=Nks[-1] # only taking the total occupation
+                            atom_occ[atomnum-1]['ks']=Nks
+                    break
             if a[:13]=='     stopping':
                 raise RuntimeError, 'SCF calculation failed'
             elif a=='':
                 raise RuntimeError, 'SCF calculation didn\'t converge'
+            self.atom_occ = atom_occ 
             self.energy_free = float(a.split()[-2])*rydberg
+
 #           a = self.cout.readline()
 #           s.write(a)
 #           while a[:13]!='     smearing':
@@ -555,16 +620,18 @@ class espresso(Calculator):
             self.energy_zero = self.energy_free
             a = self.cout.readline()
             s.write(a)
-            while a[:5]!=' !ASE':
-                a = self.cout.readline()
-                s.write(a)
-            if not hasattr(self, 'forces'):
-                self.forces = np.empty((self.natoms,3), np.float)
-            for i in range(self.natoms):
-                self.cout.readline()
-            for i in range(self.natoms):
-                self.forces[i][:] = [float(x) for x in self.cout.readline().split()]
-            self.forces *= rydberg_over_bohr
+            
+            if self.U_projection_type == 'atomic':
+                while a[:5]!=' !ASE':
+                    a = self.cout.readline()
+                    s.write(a)
+                if not hasattr(self, 'forces'):
+                    self.forces = np.empty((self.natoms,3), np.float)
+                for i in range(self.natoms):
+                    self.cout.readline()
+                for i in range(self.natoms):
+                    self.forces[i][:] = [float(x) for x in self.cout.readline().split()]
+                self.forces *= rydberg_over_bohr
             self.recalculate = False
             s.close()
                 
