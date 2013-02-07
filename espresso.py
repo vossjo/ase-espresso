@@ -372,9 +372,12 @@ class espresso(Calculator):
                 if not self.spinpol:
                     n /= 2
                 print >>f, '  nbnd='+str(n-self.nbands)+','
-        print >>f, '  occupations=%s,'% self.occupations
-        print >>f, '  smearing=\''+self.smearing+'\','
-        print >>f, '  degauss='+str(self.sigma/rydberg)+'d0,'
+        if abs(self.sigma)>1e-13:
+            print >>f, '  occupations=%s,'% self.occupations
+            print >>f, '  smearing=\''+self.smearing+'\','
+            print >>f, '  degauss='+str(self.sigma/rydberg)+'d0,'
+        else:
+            print >>f, '  occupations=\'fixed\','
         if self.spinpol:
             print >>f, '  nspin=2,'
             spcount  = 1
