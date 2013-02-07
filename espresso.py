@@ -100,7 +100,6 @@ def uniqueness(list1, list2):
     assert len(list1) == len(list2)
     if len(list1)==1:
         return [1]
-    print list1, list2
     l1_u = np.unique(list1)
     l2_u = np.unique(list2)
     unique = np.zeros(len(list1))
@@ -114,7 +113,6 @@ def uniqueness(list1, list2):
             UK2 = np.where(list2 == u_l2)[0]
             UL2 = [pp in UK2 for pp in range(len(list1))]
             UUL = [UL1[pp]*UL2[pp] for pp in range(len(list1))]
-            #print u_l1, u_l2, UL1, UL2, UUL # for debugging
             if len(np.where(np.array(UUL) != 0)[0]) == 0:
                 continue 
             kk += 1
