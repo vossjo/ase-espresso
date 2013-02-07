@@ -145,11 +145,15 @@ class espresso(Calculator):
                        occupations='smearing',#'smearing', 'fixed', 
                        dipole={'status':False},
                        field={'status':False},
-                       output={'avoidio':False, 'removewf':True},
+                       output={'avoidio':False,
+                               'removewf':True,
+                               'wf_collect':False},
                        convergence={'energy':5e-6,
                                    'mixing':0.5,
                                     'maxsteps':100,
-                                    'diag':'david'}):
+                                    'diag':'david'},
+                       startingpot=None,
+                       startingwfc=None):
         
         self.batch = checkbatch()
         self.localtmp = mklocaltmp(self.batch, outdir)
@@ -161,6 +165,9 @@ class espresso(Calculator):
         else:
             removewf = True
         atexit.register(cleanup, self.localtmp, self.scratch, removewf, self.batch, self)
+        
+        #sdir is the directory the script is run or submitted from
+        self.sdir = getsubmitorcurrentdir()
         
         self.pw = pw
         self.dw = dw
@@ -195,6 +202,8 @@ class espresso(Calculator):
             self.field = field
         self.output = output
         self.convergence = convergence
+        self.startingpot = startingpot
+        self.startingwfc = startingwfc
         self.U = U
         self.J = J
         self.U_alpha = U_alpha
@@ -225,6 +234,8 @@ class espresso(Calculator):
                      self.atoms.get_initial_magnetic_moments(), 
                      self.atoms.get_scaled_positions())
         
+        magmoms = self.atoms.get_initial_magnetic_moments()
+        
         #### CREATE DICTIONARY FOR EACH ATOM TYPE ####
         typedict = {}
         for atype in atypes:
@@ -236,7 +247,7 @@ class espresso(Calculator):
             U_alphalist = []
             for i, atom in enumerate(self.atoms):
                 if atom.symbol == atype:
-                    maglist.append(atom.magmom)
+                    maglist.append(magmoms[i])
                     masslist.append(atom.mass)
                     if self.U is not None:
                         if i in self.U:
@@ -327,9 +338,13 @@ class espresso(Calculator):
             print >>f, '  tprnfor=.true.,'
             if self.calcstress:
                 print >>f, '  tstress=.true.,'
-            if self.output is not None and self.output.has_key('avoidio'):
-                if self.output['avoidio']:
-                    print >>f, '  disk_io=\'none\','
+            if self.output is not None:
+                if self.output.has_key('avoidio'):
+                    if self.output['avoidio']:
+                        print >>f, '  disk_io=\'none\','
+                if self.output.has_key('wf_collect'):
+                    if self.output['wf_collect']:
+                        print >>f, '  wf_collect=.true.,'
 
         ### &SYSTEM ###
         print >>f, '/\n&SYSTEM\n  ibrav=0,\n  celldm(1)=1.8897261245650618d0,'
@@ -497,6 +512,10 @@ class espresso(Calculator):
                 print >>f, '  mixing_ndim='+str(self.convergence[x])+','
             elif x=='mixing_mode':
                 print >>f, '  mixing_mode=\''+self.convergence[x]+'\','
+        if self.startingpot is not None:
+            print >>f, '  startingpot=\''+self.startingpot+'\','
+        if self.startingwfc is not None:
+            print >>f, '  startingwfc=\''+self.startingwfc+'\','
 
         ### &IONS ###
         print >>f, '/\n&IONS\n  ion_dynamics=\'ase3\',\n/'
@@ -605,10 +624,13 @@ class espresso(Calculator):
                     break
             if a[:13]=='     stopping':
                 raise RuntimeError, 'SCF calculation failed'
-            elif a=='':
+            elif a=='' and self.calcmode in ('relax','scf','vc-relax','vc-md','md'):
                 raise RuntimeError, 'SCF calculation didn\'t converge'
-            self.atom_occ = atom_occ 
-            self.energy_free = float(a.split()[-2])*rydberg
+            self.atom_occ = atom_occ
+            if self.calcmode in ('relax','scf','vc-relax','vc-md','md'):
+                self.energy_free = float(a.split()[-2])*rydberg
+            else:
+                self.energy_free = None
 
 #           a = self.cout.readline()
 #           s.write(a)
@@ -621,17 +643,20 @@ class espresso(Calculator):
             a = self.cout.readline()
             s.write(a)
             
-            if self.U_projection_type == 'atomic':
-                while a[:5]!=' !ASE':
-                    a = self.cout.readline()
-                    s.write(a)
-                if not hasattr(self, 'forces'):
-                    self.forces = np.empty((self.natoms,3), np.float)
-                for i in range(self.natoms):
-                    self.cout.readline()
-                for i in range(self.natoms):
-                    self.forces[i][:] = [float(x) for x in self.cout.readline().split()]
-                self.forces *= rydberg_over_bohr
+            if self.calcmode in ('relax','scf','vc-relax','vc-md','md'):
+                if self.U_projection_type == 'atomic':
+                    while a[:5]!=' !ASE':
+                        a = self.cout.readline()
+                        s.write(a)
+                    if not hasattr(self, 'forces'):
+                        self.forces = np.empty((self.natoms,3), np.float)
+                    for i in range(self.natoms):
+                        self.cout.readline()
+                    for i in range(self.natoms):
+                        self.forces[i][:] = [float(x) for x in self.cout.readline().split()]
+                    self.forces *= rydberg_over_bohr
+            else:
+                self.forces = None
             self.recalculate = False
             s.close()
                 
@@ -684,7 +709,7 @@ class espresso(Calculator):
 
     def write_pot(self, filename='pot.xsf'):
         if filename[0]!='/':
-            file = self.localtmp+'/'+filename
+            file = self.sdir+'/'+filename
         else:
             file = filename
         self.update(self.atoms)
@@ -701,3 +726,45 @@ class espresso(Calculator):
             os.chdir(cdir)
         else:
             os.system('cd '+self.scratch+' ; '+'pp.x -in '+self.localtmp+'/pp.inp >>'+self.localtmp+'/pp.log')
+
+
+    def save_output(self, filename='calc.tgz'):
+        if filename[0]!='/':
+            file = self.sdir+'/'+filename
+        else:
+            file = filename
+        self.update(self.atoms)
+        self.stop()
+        
+        os.system('tar czf '+filename+' --directory='+self.scratch+' calc.save')
+
+
+    def load_output(self, filename='calc.tgz'):
+        self.stop()
+        if filename[0]!='/':
+            file = self.sdir+'/'+filename
+        else:
+            file = filename
+
+        os.system('tar xzf '+filename+' --directory='+self.scratch)
+
+
+    def save_wf(self, filename='wf.tgz'):
+        if filename[0]!='/':
+            file = self.sdir+'/'+filename
+        else:
+            file = filename
+        self.update(self.atoms)
+        self.stop()
+        
+        os.system('tar czf '+filename+' --directory='+self.scratch+' --exclude=calc.save .')
+
+
+    def load_wf(self, filename='wf.tgz'):
+        self.stop()
+        if filename[0]!='/':
+            file = self.sdir+'/'+filename
+        else:
+            file = filename
+
+        os.system('tar xzf '+filename+' --directory='+self.scratch)
