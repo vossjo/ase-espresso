@@ -109,7 +109,6 @@ def uniqueness(list1, list2):
         UK1 = np.where(list1 == u_l1)[0]
         UL1 = [pp in UK1 for pp in range(len(list1))]
         for u_l2 in l2_u:
-            print list2, u_l2, np.where(list2 == u_l2)
             UK2 = np.where(list2 == u_l2)[0]
             UL2 = [pp in UK2 for pp in range(len(list1))]
             UUL = [UL1[pp]*UL2[pp] for pp in range(len(list1))]
