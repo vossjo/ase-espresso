@@ -143,7 +143,7 @@ class espresso(Calculator):
                  outdir = None,
                  calcstress = False,
                  smearing = 'mv',
-                 sigma = 0.2,
+                 sigma = 0.0,
                  U = None,
                  J = None,
                  U_alpha = None,
@@ -189,6 +189,8 @@ class espresso(Calculator):
         self.calcmode = mode
         self.xc = xc
         self.smearing = smearing
+        if self.kpts != (1,1,1):
+            sigma = 0.1
         self.sigma = sigma
         self.spinpol = spinpol
         self.tot_charge = tot_charge
