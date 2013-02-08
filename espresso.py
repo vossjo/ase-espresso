@@ -130,27 +130,38 @@ bohr = 0.52917721092
 rydberg_over_bohr = rydberg / bohr
 
 class espresso(Calculator):
-    def __init__(self, pw=350.0, dw=3500.0, nbands=-10, 
-                 kpts=(1,1,1),kptshift=(0,0,0),
-                 mode='relax',
-                 xc='PBE', spinpol=False,
-                       outdir=None, calcstress=False,
-                       psppath=None, smearing='mv', sigma=0.2,
-                       U=None,J=None,U_alpha=None,U_projection_type='atomic',
-                       tot_charge=0.0, # +1 means 1 e missing, -1 means 1 extra e
-                       tot_magnetization=-1,#-1 means unspecified
-                       occupations='smearing',#'smearing', 'fixed', 
-                       dipole={'status':False},
-                       field={'status':False},
-                       output={'avoidio':False,
-                               'removewf':True,
-                               'wf_collect':False},
-                       convergence={'energy':5e-6,
-                                   'mixing':0.5,
-                                    'maxsteps':100,
-                                    'diag':'david'},
-                       startingpot=None,
-                       startingwfc=None):
+    def __init__(self,
+                 pw = 350.0,
+                 dw = None,
+                 nbands = -10, 
+                 kpts = (1,1,1),
+                 kptshift = (0,0,0),
+                 mode = 'relax',
+                 xc = 'PBE',
+                 psppath = None,
+                 spinpol = False,
+                 outdir = None,
+                 calcstress = False,
+                 smearing = 'mv',
+                 sigma = 0.2,
+                 U = None,
+                 J = None,
+                 U_alpha = None,
+                 U_projection_type = 'atomic',
+                 tot_charge = 0.0, # +1 means 1 e missing, -1 means 1 extra e
+                 tot_magnetization = -1, #-1 means unspecified
+                 occupations = 'smearing', # 'smearing', 'fixed'
+                 dipole = {'status':False},
+                 field = {'status':False},
+                 output = {'avoidio':False,
+                           'removewf':True,
+                           'wf_collect':False},
+                 convergence = {'energy':5e-6,
+                                'mixing':0.5,
+                                'maxsteps':100,
+                                'diag':'david'},
+                 startingpot = None,
+                 startingwfc = None):
         
         self.batch = checkbatch()
         self.localtmp = mklocaltmp(self.batch, outdir)
@@ -167,7 +178,11 @@ class espresso(Calculator):
         self.sdir = getsubmitorcurrentdir()
         
         self.pw = pw
-        self.dw = dw
+        if dw is None:
+            self.dw = 10. * self.pw
+        else:
+            self.dw = dw
+            assert self.dw >= self.pw
         self.nbands = nbands
         self.kpts = kpts
         self.kptshift = kptshift
