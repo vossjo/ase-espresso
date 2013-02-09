@@ -152,7 +152,7 @@ class espresso(Calculator):
                  outdir = None,
                  calcstress = False,
                  smearing = 'fd',
-                 sigma = 0.0,
+                 sigma = 0.1,
                  fix_magmom = False,
                  U = None,
                  J = None,
@@ -171,18 +171,25 @@ class espresso(Calculator):
                                 'maxsteps':100,
                                 'diag':'david'},
                  startingpot = None,
-                 startingwfc = None):
+                 startingwfc = None,
+                 onlycreatepwinp=None):     #specify filename to only create pw input
         
-        self.batch = checkbatch()
-        self.localtmp = mklocaltmp(self.batch, outdir)
-        if self.batch:
-            self.nodes,self.np = mpisetup(self.localtmp)
-        self.scratch = mkscratch(self.batch, self.localtmp)
-        if output is not None and output.has_key('removewf'):
-            removewf = output['removewf']
+        if onlycreatepwinp is None:
+            self.batch = checkbatch()
+            self.localtmp = mklocaltmp(self.batch, outdir)
+            if self.batch:
+                self.nodes,self.np = mpisetup(self.localtmp)
+            self.scratch = mkscratch(self.batch, self.localtmp)
+            if output is not None and output.has_key('removewf'):
+                removewf = output['removewf']
+            else:
+                removewf = True
+            atexit.register(cleanup, self.localtmp, self.scratch, removewf, self.batch, self)
+            self.cancalc = True
         else:
-            removewf = True
-        atexit.register(cleanup, self.localtmp, self.scratch, removewf, self.batch, self)
+            self.pwinp = onlycreatepwinp
+            self.localtmp=''
+            self.cancalc = False
         
         #sdir is the directory the script is run or submitted from
         self.sdir = getsubmitorcurrentdir()
@@ -199,8 +206,8 @@ class espresso(Calculator):
         self.calcmode = mode
         self.xc = xc
         self.smearing = smearing
-        if self.kpts != (1,1,1):
-            sigma = 0.1
+        #if self.kpts != (1,1,1):
+        #    sigma = 0.1
         self.sigma = sigma
         self.spinpol = spinpol
         self.fix_magmom = fix_magmom
@@ -348,7 +355,10 @@ class espresso(Calculator):
     def writeinputfile(self):
         if self.atoms is None:
             raise ValueError, 'no atoms defined'
-        f = open(self.localtmp+'/pw.inp', 'w')
+        if self.cancalc:
+            f = open(self.localtmp+'/pw.inp', 'w')
+        else:
+            f = open(self.pwinp, 'w')
         
         ### &CONTROL ###
         print >>f, '&CONTROL\n  calculation=\''+self.calcmode+'\',\n  prefix=\'calc\','
@@ -394,8 +404,12 @@ class espresso(Calculator):
                 nel = {}
                 for x in self.species:
                     el = x.strip('0123456789')
-                    p = os.popen('grep "Z valence" '+self.psppath+'/'+el+'.UPF','r')
-                    nel[el] = int(round(float(p.readline().split()[-3])))
+                    #get number of valence electrons from pseudopotential or paw setup
+                    p = os.popen('egrep -i \'z\ valence|z_valence\' '+self.psppath+'/'+el+'.UPF | tr \'"\' \' \'','r')
+                    for y in p.readline().split():
+                        if y[0].isdigit() or y[0]=='.':
+                            nel[el] = int(round(float(y)))
+                            break
                     p.close()
                 for x in self.specprops:
                     n += nel[x[0].strip('0123456789')]
@@ -403,7 +417,7 @@ class espresso(Calculator):
                     n /= 2
                 print >>f, '  nbnd='+str(n-self.nbands)+','
         if abs(self.sigma)>1e-13:
-            print >>f, '  occupations=%s,'% self.occupations
+            print >>f, '  occupations=\''+self.occupations+'\','
             print >>f, '  smearing=\''+self.smearing+'\','
             print >>f, '  degauss='+str(self.sigma/rydberg)+'d0,'
         else:
@@ -551,9 +565,12 @@ class espresso(Calculator):
             print >>f, '  startingwfc=\''+self.startingwfc+'\','
 
         ### &IONS ###
-        print >>f, '/\n&IONS\n  ion_dynamics=\'ase3\',\n/'
+        if self.cancalc:
+            print >>f, '/\n&IONS\n  ion_dynamics=\'ase3\','
+        else:
+            print >>f, '/\n&IONS\n  ion_dynamics=\'bfgs\','
 
-        print >>f, 'CELL_PARAMETERS'
+        print >>f, '/\nCELL_PARAMETERS'
         for i in range(3):
             print >>f, '%21.15fd0 %21.15fd0 %21.15fd0' % (self.atoms.cell[i][0],self.atoms.cell[i][1],self.atoms.cell[i][2])
 
@@ -692,9 +709,12 @@ class espresso(Calculator):
                 self.forces = None
             self.recalculate = False
             s.close()
-                
 
-    def initialize(self, atoms, calcstart=1):
+    def initialize(self, atoms):
+        """ Create the pw.inp input file and start the calculation. 
+        If onlycreatepwinp is specified in calculator setup,
+        only the input file will be written for manual submission.
+        """
         if not self.started:
             a = self.atoms
             
@@ -712,7 +732,7 @@ class espresso(Calculator):
             #self.spos = zip(s, a.get_scaled_positions()) # UPDATE to have species indices
             self.check_spinpol()
             self.writeinputfile()
-        if calcstart:
+        if self.cancalc:
             self.start()
 
     def check_spinpol(self):
