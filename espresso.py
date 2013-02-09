@@ -142,8 +142,9 @@ class espresso(Calculator):
                  spinpol = False,
                  outdir = None,
                  calcstress = False,
-                 smearing = 'mv',
+                 smearing = 'fd',
                  sigma = 0.0,
+                 fix_magmom = False,
                  U = None,
                  J = None,
                  U_alpha = None,
@@ -193,6 +194,7 @@ class espresso(Calculator):
             sigma = 0.1
         self.sigma = sigma
         self.spinpol = spinpol
+        self.fix_magmom = fix_magmom
         self.tot_charge = tot_charge
         self.tot_magnetization = tot_magnetization
         self.occupations = occupations
@@ -224,6 +226,7 @@ class espresso(Calculator):
         self.U_projection_type = U_projection_type
         self.atoms = None
         self.started = False
+        self.sigma_small = 1e-13
 
     def __del__(self):
         try:
@@ -367,9 +370,11 @@ class espresso(Calculator):
         print >>f, '  ntyp='+str(self.nspecies)+',' #str(len(self.msym))+','
         if not self.tot_charge:
             print >>f, '  tot_charge='+str(self.tot_charge)+','
-        if self.tot_magnetization != -1:
+        if self.fix_magmom:
+            assert self.spinpol
+            print >>f, '  tot_magnetization='+str(self.summed_magmoms)+'d0,'
+        elif self.tot_magnetization != -1:
             print >>f, '  tot_magnetization='+str(self.tot_magnetization)+','
-
         print >>f, '  ecutwfc='+str(self.pw/rydberg)+'d0,'
         print >>f, '  ecutrho='+str(self.dw/rydberg)+'d0,'
         if self.nbands is not None:
@@ -393,6 +398,8 @@ class espresso(Calculator):
             print >>f, '  smearing=\''+self.smearing+'\','
             print >>f, '  degauss='+str(self.sigma/rydberg)+'d0,'
         else:
+            if self.spinpol:
+                assert self.fix_magmom
             print >>f, '  occupations=\'fixed\','
         if self.spinpol:
             print >>f, '  nspin=2,'
@@ -694,10 +701,24 @@ class espresso(Calculator):
             #self.nspec = len(self.species)
             self.natoms = len(self.atoms)
             #self.spos = zip(s, a.get_scaled_positions()) # UPDATE to have species indices
+            self.check_spinpol()
             self.writeinputfile()
         if calcstart:
             self.start()
-    
+
+    def check_spinpol(self):
+        mm = self.atoms.get_initial_magnetic_moments()
+        sp = mm.any()
+        self.summed_magmoms = np.sum(mm)
+        if sp:
+            if not self.spinpol:
+                raise KeyError('Explicitly specify spinpol=True for spin-polarized systems')
+            elif abs(self.sigma) <= self.sigma_small and not self.fix_magmom:
+                raise KeyError('Please use fix_magmom=True for sigma=0.0 eV and spinpol=True. Hopefully this is not an extended system...?')
+        else:
+            if self.spinpol and abs(self.sigma) <= self.sigma_small:
+                self.fix_magmom = True 
+
     def start(self):
         if not self.started:
             if self.batch:
