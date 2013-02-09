@@ -6,12 +6,21 @@ getprocs = ' echo -e $LSB_HOSTS | sed s/" "/"\\\\n"/g >machinefile ;'\
           +' uniq machinefile >uniqmachinefile ;'\
           +' nodes=`wc -l <uniqmachinefile` ;'\
           +' np=`wc -l <machinefile` '
-perHostMpiExec = 'mpiexec --mca plm_rsh_agent /afs/slac.stanford.edu/package/lsf/bin.slac/gmmpirun_lsgrun.sh -machinefile uniqmachinefile -np `wc -l <uniqmachinefile`'
+
+import os
+fin,fout = os.popen4('mpirun --version')
+mpiversion=fout.readlines()[0]
+mpiversion=mpiversion.split()[3]
+rsh_agent='orte_rsh_agent'
+if mpiversion[:3]=='1.4':
+        rsh_agent='plm_rsh_agent'
+        
+perHostMpiExec = 'mpiexec --mca '+rsh_agent+' /afs/slac.stanford.edu/package/lsf/bin.slac/gmmpirun_lsgrun.sh -machinefile uniqmachinefile -np `wc -l <uniqmachinefile`'
 perProcMpiExec = 'pam -g /afs/slac/g/suncat/bin/suncat-tsmpirun -x LD_LIBRARY_PATH'
 
 from ase.calculators.general import Calculator
 import atexit
-import os, sys, string
+import sys, string
 import numpy as np
 
 
