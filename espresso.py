@@ -174,40 +174,16 @@ class espresso(Calculator):
                  startingwfc = None,
                  onlycreatepwinp=None):     #specify filename to only create pw input
         
-        if onlycreatepwinp is None:
-            self.batch = checkbatch()
-            self.localtmp = mklocaltmp(self.batch, outdir)
-            if self.batch:
-                self.nodes,self.np = mpisetup(self.localtmp)
-            self.scratch = mkscratch(self.batch, self.localtmp)
-            if output is not None and output.has_key('removewf'):
-                removewf = output['removewf']
-            else:
-                removewf = True
-            atexit.register(cleanup, self.localtmp, self.scratch, removewf, self.batch, self)
-            self.cancalc = True
-        else:
-            self.pwinp = onlycreatepwinp
-            self.localtmp=''
-            self.cancalc = False
-        
-        #sdir is the directory the script is run or submitted from
-        self.sdir = getsubmitorcurrentdir()
-        
+        self.outdir= outdir
+        self.onlycreatepwinp = onlycreatepwinp 
         self.pw = pw
-        if dw is None:
-            self.dw = 10. * self.pw
-        else:
-            self.dw = dw
-            assert self.dw >= self.pw
+        self.dw = dw
         self.nbands = nbands
         self.kpts = kpts
         self.kptshift = kptshift
         self.calcmode = mode
         self.xc = xc
         self.smearing = smearing
-        #if self.kpts != (1,1,1):
-        #    sigma = 0.1
         self.sigma = sigma
         self.spinpol = spinpol
         self.fix_magmom = fix_magmom
@@ -216,22 +192,9 @@ class espresso(Calculator):
         self.occupations = occupations
         self.outdir = outdir
         self.calcstress = calcstress
-        if psppath is None:
-            try:
-                self.psppath = os.environ['ESP_PSP_PATH']
-            except:
-                print 'Unable to find pseudopotential path.  Consider setting ESP_PSP_PATH environment variable'
-                raise
-        else:
-            self.psppath = psppath
-        if dipole is None:
-            self.dipole = {'status':False}
-        else:
-            self.dipole = dipole
-        if field is None:
-            self.field = {'status':False}
-        else:
-            self.field = field
+        self.psppath = psppath
+        self.dipole = dipole
+        self.field = field
         self.output = output
         self.convergence = convergence
         self.startingpot = startingpot
@@ -243,6 +206,77 @@ class espresso(Calculator):
         self.atoms = None
         self.started = False
         self.sigma_small = 1e-13
+
+        self.input_update() # Create the tmp output folder 
+
+
+    def input_update(self):
+        """ Run initialization functions, such that this can be called if variables in espresso are
+        changes using set or directly. 
+        """
+        self.create_outdir() # Create the tmp output folder 
+
+        #sdir is the directory the script is run or submitted from
+        self.sdir = getsubmitorcurrentdir()
+
+        if self.dw is None:
+            self.dw = 10. * self.pw
+        else:
+            assert self.dw >= self.pw
+
+        if self.psppath is None:
+            try:
+                self.psppath = os.environ['ESP_PSP_PATH']
+            except:
+                print 'Unable to find pseudopotential path.  Consider setting ESP_PSP_PATH environment variable'
+                raise
+        if self.dipole is None:
+            self.dipole = {'status':False}
+        if self.field is None:
+            self.field = {'status':False}
+        
+
+
+    def create_outdir(self):
+        if self.onlycreatepwinp is None:
+            self.batch = checkbatch()
+            self.localtmp = mklocaltmp(self.batch, self.outdir)
+            if self.batch:
+                self.nodes,self.np = mpisetup(self.localtmp)
+            self.scratch = mkscratch(self.batch, self.localtmp)
+            if self.output is not None and self.output.has_key('removewf'):
+                removewf = self.output['removewf']
+            else:
+                removewf = True
+            atexit.register(cleanup, self.localtmp, self.scratch, removewf, self.batch, self)
+            self.cancalc = True
+        else:
+            self.pwinp = onlycreatepwinp
+            self.localtmp=''
+            self.cancalc = False
+
+
+    def set(self,  **kwargs):
+        """ Define settings for the Quantum Espresso calculator object after it has been initialized. 
+        This is done in the following way:
+
+        >> calc = espresso(...)
+        >> atoms = set.calculator(calc)
+        >> calc.set(xc='BEEF')
+
+        NB: No input validation is made
+        """
+        for key, value in kwargs.items():
+            if key == 'outdir':
+                self.outdir = value
+                self.create_outdir()
+            if key == 'startingpot':
+                self.startingpot = value
+            if key == 'startingwfc':
+                self.startingwfc = value
+            if key == 'U_alpha':
+                self.U_alpha = value
+        self.input_update()
 
     def __del__(self):
         try:
@@ -578,7 +612,6 @@ class espresso(Calculator):
         for species in self.species:   # PSP ORDERING FOLLOWS SPECIESINDEX
             el = species.strip('0123456789')
             print >>f, species, self.specdict[el]['mass'][0], el+'.UPF'
-            print 
         
         print >>f, 'ATOMIC_POSITIONS {crystal}'
         for species, mass, magmom, pos in self.specprops:
@@ -595,6 +628,7 @@ class espresso(Calculator):
             msg = 'creation of new QE calculator object required for new atoms'
             if len(atoms)!=len(self.atoms):
                 raise ValueError, msg
+            
             x = atoms.cell-self.atoms.cell
             if max(x.flat)>1E-13 or min(x.flat)<-1E-13 or \
                 atoms.get_atomic_numbers()!=self.atoms.get_atomic_numbers():
