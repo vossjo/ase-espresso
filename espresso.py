@@ -453,7 +453,7 @@ class espresso(Calculator):
         if abs(self.sigma)>1e-13:
             print >>f, '  occupations=\''+self.occupations+'\','
             print >>f, '  smearing=\''+self.smearing+'\','
-            print >>f, '  degauss='+str(self.sigma/rydberg)+'d0,'
+            print >>f, '  degauss='+str(self.sigma/rydberg)+','
         else:
             if self.spinpol:
                 assert self.fix_magmom
