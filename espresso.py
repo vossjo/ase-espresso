@@ -619,7 +619,10 @@ class espresso(Calculator):
         
         print >>f, 'K_POINTS automatic'
         print >>f, self.kpts[0], self.kpts[1],self.kpts[2],self.kptshift[0],self.kptshift[1],self.kptshift[2]
+
+        ### closing PWscf input file ###
         f.close()
+        print '\nPWscf input file written\n'
         
     def set_atoms(self, atoms):
         if self.atoms is None:
