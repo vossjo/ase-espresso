@@ -154,6 +154,7 @@ class espresso(Calculator):
                  smearing = 'fd',
                  sigma = 0.1,
                  fix_magmom = False,
+                 usesym = True,
                  U = None,
                  J = None,
                  U_alpha = None,
@@ -187,6 +188,7 @@ class espresso(Calculator):
         self.sigma = sigma
         self.spinpol = spinpol
         self.fix_magmom = fix_magmom
+        self.usesym = usesym
         self.tot_charge = tot_charge
         self.tot_magnetization = tot_magnetization
         self.occupations = occupations
@@ -458,13 +460,17 @@ class espresso(Calculator):
             if self.spinpol:
                 assert self.fix_magmom
             print >>f, '  occupations=\'fixed\','
+        if not self.usesym:
+            print >>f, '  nosym=.true.,'
         if self.spinpol:
             print >>f, '  nspin=2,'
             spcount  = 1
             for species in self.species: # FOLLOW SAME ORDERING ROUTINE AS FOR PSP                
                 magindex = int(string.join([i for i in species if i.isdigit()],''))
                 el  = species.strip('0123456789')
-                mag = self.specdict[el]['magmoms'][magindex-1]
+                #mag = self.specdict[el]['magmoms'][magindex-1]
+                # a hack: default mag to half-polarised atoms
+                mag = 0.5
                 print >>f, '  starting_magnetization(%d)=%sd0,' % (spcount,mag)
                 spcount += 1
         print >>f, '  input_dft=\''+self.xc+'\','
