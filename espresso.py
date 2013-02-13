@@ -278,6 +278,10 @@ class espresso(Calculator):
                 self.startingwfc = value
             if key == 'U_alpha':
                 self.U_alpha = value
+            if key == 'U':
+                self.U = U
+            if key == 'xc':
+                self.xc = xc
         self.input_update()
 
     def __del__(self):
@@ -535,7 +539,7 @@ class espresso(Calculator):
                         Ui = self.U[el]
                     else:
                         Ui = '1D-40'
-                    if 'D' in Ui or 'd' in Ui or 'E' in Ui or 'e' in Ui:
+                    if 'D' in str(Ui) or 'd' in str(Ui) or 'E' in str(Ui) or 'e' in str(Ui):
                         print >>f, '  Hubbard_U('+str(i+1)+')='+str(Ui)+','
                     else:
                         print >>f, '  Hubbard_U('+str(i+1)+')='+str(Ui)+'d0,'
