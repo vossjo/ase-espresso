@@ -22,7 +22,7 @@ from ase.calculators.general import Calculator
 import atexit
 import sys, string
 import numpy as np
-
+from types import FileType, StringType
 
 def checkbatch():
     p = os.popen('echo '+jobid, 'r')
@@ -132,7 +132,6 @@ def uniqueness(list1, list2):
         unique[pp] += ppk+umax
     return unique.astype(int)
 
-
 hartree = 27.21138505
 rydberg = 0.5*hartree
 bohr = 0.52917721092
@@ -172,7 +171,7 @@ class espresso(Calculator):
                                 'maxsteps':100,
                                 'diag':'david'},
                  startingpot = None,
-                 startingwfc = None,
+                 startingwfc = 'random', #None,
                  onlycreatepwinp=None):     #specify filename to only create pw input
         
         self.outdir= outdir
@@ -404,7 +403,12 @@ class espresso(Calculator):
         self.species   = np.unique(speciesindex)
         self.nspecies  = len(self.species)
         self.specprops = specprops
-           
+
+    def writetoinp(self, f, txt):
+        assert type(f) is FileType
+        assert type(txt) is StringType
+        print >> f, txt
+        f.flush() 
     
     def writeinputfile(self):
         if self.atoms is None:
@@ -415,9 +419,13 @@ class espresso(Calculator):
             f = open(self.pwinp, 'w')
         
         ### &CONTROL ###
-        print >>f, '&CONTROL\n  calculation=\''+self.calcmode+'\',\n  prefix=\'calc\','
-        print >>f, '  pseudo_dir=\''+self.psppath+'\','
-        print >>f, '  outdir=\'.\','
+        txt0 = '&CONTROL\n  calculation=\''+self.calcmode+'\',\n  prefix=\'calc\','
+        txt1 = '  pseudo_dir=\''+self.psppath+'\','
+        txt2 = '  outdir=\'.\','
+        self.writetoinp(f, txt0)
+        self.writetoinp(f, txt1)
+        self.writetoinp(f, txt2)
+
         efield = (self.field['status']==True)
         dipfield = (self.dipole['status']==True)
         if efield or dipfield:
