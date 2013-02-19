@@ -166,12 +166,12 @@ class espresso(Calculator):
                  output = {'avoidio':False,
                            'removewf':True,
                            'wf_collect':False},
-                 convergence = {'energy':5e-6,
-                                'mixing':0.5,
-                                'maxsteps':100,
-                                'diag':'david'},
+                 convergence = None, #{'energy':1.e-6,
+                                #'mixing':0.7,
+                                #'maxsteps':100,
+                                #'diag':'david'},
                  startingpot = None,
-                 startingwfc = 'random', #None,
+                 startingwfc = 'random',
                  onlycreatepwinp=None):     #specify filename to only create pw input
         
         self.outdir= outdir
@@ -208,8 +208,12 @@ class espresso(Calculator):
         self.started = False
         self.sigma_small = 1e-13
 
-        self.input_update() # Create the tmp output folder 
+        self.default_conv = {'energy':1.e-6,
+                             'mixing':0.7,
+                             'maxsteps':100,
+                             'diag':'david'}
 
+        self.input_update() # Create the tmp output folder 
 
     def input_update(self):
         """ Run initialization functions, such that this can be called if variables in espresso are
@@ -409,16 +413,8 @@ class espresso(Calculator):
         assert type(txt) is StringType
         print >> f, txt
         f.flush() 
-    
-    def writeinputfile(self):
-        if self.atoms is None:
-            raise ValueError, 'no atoms defined'
-        if self.cancalc:
-            f = open(self.localtmp+'/pw.inp', 'w')
-        else:
-            f = open(self.pwinp, 'w')
-        
-        ### &CONTROL ###
+
+    def write_control(self, f):
         txt0 = '&CONTROL\n  calculation=\''+self.calcmode+'\',\n  prefix=\'calc\','
         txt1 = '  pseudo_dir=\''+self.psppath+'\','
         txt2 = '  outdir=\'.\','
@@ -426,41 +422,57 @@ class espresso(Calculator):
         self.writetoinp(f, txt1)
         self.writetoinp(f, txt2)
 
-        efield = (self.field['status']==True)
-        dipfield = (self.dipole['status']==True)
-        if efield or dipfield:
-            print >>f, '  tefield=.true.,'
-            if dipfield:
-                print >>f, '  dipfield=.true.,'
+        if self.efield or self.dipfield:
+            txt3 = '  tefield=.true.,'
+            self.writetoinp(f, txt3)
+            if self.dipfield:
+                txt4 = '  dipfield=.true.,'
+                self.writetoinp(f, txt4)
+
         if self.U_projection_type is 'atomic':
-            print >>f, '  tprnfor=.true.,'
+            txt5 = '  tprnfor=.true.,'
+            self.writetoinp(f, txt5)
             if self.calcstress:
-                print >>f, '  tstress=.true.,'
+                txt6 = '  tstress=.true.,'
+                self.writetoinp(f, txt6)
             if self.output is not None:
                 if self.output.has_key('avoidio'):
                     if self.output['avoidio']:
-                        print >>f, '  disk_io=\'none\','
+                        txt7 = '  disk_io=\'none\','
+                        self.writetoinp(f, txt7)
                 if self.output.has_key('wf_collect'):
                     if self.output['wf_collect']:
-                        print >>f, '  wf_collect=.true.,'
+                        txt8 = '  wf_collect=.true.,'
+                        self.writetoinp(f, txt8)
 
-        ### &SYSTEM ###
-        print >>f, '/\n&SYSTEM\n  ibrav=0,\n  celldm(1)=1.8897261245650618d0,'
-        print >>f, '  nat='+str(self.natoms)+','
-        self.atoms2species() #self.convertmag2species()
-        print >>f, '  ntyp='+str(self.nspecies)+',' #str(len(self.msym))+','
+    def write_system(self, f):
+        txt0 = '/\n&SYSTEM\n  ibrav=0,\n  celldm(1)=1.8897261245650618d0,'
+        txt1 = '  nat='+str(self.natoms)+','
+        self.writetoinp(f, txt0)
+        self.writetoinp(f, txt1)
+
+        self.atoms2species()
+
+        txt3 = '  ntyp='+str(self.nspecies)+','
+        self.writetoinp(f, txt3)
         if not self.tot_charge:
-            print >>f, '  tot_charge='+str(self.tot_charge)+','
+            txt4 = '  tot_charge='+str(self.tot_charge)+','
+            self.writetoinp(f, txt4)
         if self.fix_magmom:
             assert self.spinpol
-            print >>f, '  tot_magnetization='+str(self.summed_magmoms)+'d0,'
+            txt5 = '  tot_magnetization='+str(self.summed_magmoms)+'d0,'
+            self.writetoinp(f, txt5)
         elif self.tot_magnetization != -1:
-            print >>f, '  tot_magnetization='+str(self.tot_magnetization)+','
-        print >>f, '  ecutwfc='+str(self.pw/rydberg)+'d0,'
-        print >>f, '  ecutrho='+str(self.dw/rydberg)+'d0,'
+            txt6 = '  tot_magnetization='+str(self.tot_magnetization)+','
+            self.writetoinp(f, txt6)
+        txt7 = '  ecutwfc='+str(self.pw/rydberg)+'d0,'
+        txt8 = '  ecutrho='+str(self.dw/rydberg)+'d0,'
+        self.writetoinp(f, txt7)
+        self.writetoinp(f, txt8)
+
         if self.nbands is not None:
-            if self.nbands>0:
-                print >>f, '  nbnd='+str(self.nbands)+','
+            if self.nbands > 0:
+                txt9 = '  nbnd='+str(self.nbands)+','
             else:
                 n = 0
                 nel = {}
@@ -477,19 +489,27 @@ class espresso(Calculator):
                     n += nel[x[0].strip('0123456789')]
                 if not self.spinpol:
                     n /= 2
-                print >>f, '  nbnd='+str(n-self.nbands)+','
-        if abs(self.sigma)>1e-13:
-            print >>f, '  occupations=\''+self.occupations+'\','
-            print >>f, '  smearing=\''+self.smearing+'\','
-            print >>f, '  degauss='+str(self.sigma/rydberg)+','
+                txt9 = '  nbnd='+str(n-self.nbands)+','
+            self.writetoinp(f, txt9)
+
+        if abs(self.sigma) > self.sigma_small:
+            txt10 = '  occupations=\''+self.occupations+'\','
+            txt11 = '  smearing=\''+self.smearing+'\','
+            txt12 = '  degauss='+str(self.sigma/rydberg)+','
+            self.writetoinp(f, txt10)
+            self.writetoinp(f, txt11)
+            self.writetoinp(f, txt12)
         else:
             if self.spinpol:
                 assert self.fix_magmom
-            print >>f, '  occupations=\'fixed\','
+            txt13 = '  occupations=\'fixed\','
+            self.writetoinp(f, txt13)
         if not self.usesym:
-            print >>f, '  nosym=.true.,'
+            txt14 = '  nosym=.true.,'
+            self.writetoinp(f, txt14)
         if self.spinpol:
-            print >>f, '  nspin=2,'
+            txt15 = '  nspin=2,'
+            self.writetoinp(f, txt15)
             spcount  = 1
             for species in self.species: # FOLLOW SAME ORDERING ROUTINE AS FOR PSP                
                 magindex = int(string.join([i for i in species if i.isdigit()],''))
@@ -497,23 +517,26 @@ class espresso(Calculator):
                 #mag = self.specdict[el]['magmoms'][magindex-1]
                 # a hack: default mag to half-polarised atoms
                 mag = 0.5
-                print >>f, '  starting_magnetization(%d)=%sd0,' % (spcount,mag)
+                txt = '  starting_magnetization(%d)=%sd0,' % (spcount,mag)
+                self.writetoinp(f, txt)
                 spcount += 1
-        print >>f, '  input_dft=\''+self.xc+'\','
+        txt16 = '  input_dft=\''+self.xc+'\','
+        self.writetoinp(f, txt16)
         edir = 3
-        if dipfield:
+        if self.dipfield:
             try:
                 edir = self.dipole['edir']
             except:
                 pass
-        elif efield:
+        elif self.efield:
             try:
                 edir = self.field['edir']
             except:
                 pass
-        if dipfield or efield:
-            print >>f, '  edir='+str(edir)+','
-        if dipfield:
+        if self.dipfield or self.efield:
+            txt17 = '  edir='+str(edir)+','
+            self.writetoinp(f, txt17)
+        if self.dipfield:
             if self.dipole.has_key('emaxpos'):
                 emaxpos = self.dipole['emaxpos']
             else:
@@ -526,10 +549,13 @@ class espresso(Calculator):
                 eamp = self.dipole['eamp']
             else:
                 eamp = 0.0
-            print >>f, '  emaxpos='+str(emaxpos)+'d0,'
-            print >>f, '  eopreg='+str(eopreg)+'d0,'
-            print >>f, '  eamp='+str(eamp)+'d0,'
-        if efield:
+            txt18 = '  emaxpos='+str(emaxpos)+'d0,'
+            txt19 = '  eopreg='+str(eopreg)+'d0,'
+            txt20 = '  eamp='+str(eamp)+'d0,'
+            self.writetoinp(f, txt18)
+            self.writetoinp(f, txt19)
+            self.writetoinp(f, txt20)
+        if self.efield:
             if self.field.has_key('emaxpos'):
                 emaxpos = self.field['emaxpos']
             else:
@@ -542,9 +568,16 @@ class espresso(Calculator):
                 eamp = self.field['eamp']
             else:
                 eamp = 0.0
-            print >>f, '  emaxpos2='+str(emaxpos)+'d0,'
-            print >>f, '  eopreg2='+str(eopreg)+'d0,'
-            print >>f, '  eamp2='+str(eamp)+'d0,'
+            txt21 = '  emaxpos2='+str(emaxpos)+'d0,'
+            txt22 = '  eopreg2='+str(eopreg)+'d0,'
+            txt23 = '  eamp2='+str(eamp)+'d0,'
+            self.writetoinp(f, txt21)
+            self.writetoinp(f, txt22)
+            self.writetoinp(f, txt23)
+
+        self.write_hubbard_system(f)
+
+    def write_hubbard_system(self, f):
         if self.U is not None or self.J is not None or self.U_alpha is not None:
             print >>f, '  lda_plus_u=.true.,'
             if self.J is not None:
@@ -602,60 +635,119 @@ class espresso(Calculator):
                     else:
                         print >>f, '  Hubbard_alpha('+str(i+1)+')=1D-40'
                     """
-        ### &ELECTRONS ###
-        print >>f,'/\n&ELECTRONS'
-        try:
-            diag = self.convergence['diag']
-            print >>f,'  diagonalization=\''+diag+'\','
-        except:
-            pass
+
+    def write_electrons(self, f):
+        txt0 = '/\n&ELECTRONS'
+        self.writetoinp(f, txt0)
+
         if self.convergence is None:
-            print >>f, '  conv_thr='+str(5e-6/rydberg)+'d0,'
+            self.convergence = self.default_conv
+
+        # convergence settings always written
+        if self.convergence.has_key('energy'):
+            e_thr = self.convergence['energy']
         else:
-            if self.convergence.has_key('energy'):
-                print >>f, '  conv_thr='+str(self.convergence['energy']/rydberg)+','
-            else:
-                print >>f, '  conv_thr='+str(5e-6/rydberg)+','
+            e_thr = self.default_conv['energy']
+        txt1 = '  conv_thr='+str(e_thr/rydberg)+','
+        self.writetoinp(f, txt1)
+
+        if self.convergence.has_key('mixing'):
+            beta = self.convergence['mixing']
+        else:
+            beta = self.default_conv['mixing']
+        txt2 = '  mixing_beta='+str(beta)+'d0,'
+        self.writetoinp(f, txt2)
+
+        if self.convergence.has_key('maxsteps'):
+            maxsteps = self.convergence['maxsteps']
+        else:
+            maxsteps = self.default_conv['maxsteps']
+        txt3 = '  electron_maxstep='+str(maxsteps)+','
+        self.writetoinp(f, txt3)
+
+        if self.convergence.has_key('diag'):
+            diag = self.convergence['diag']
+        else:
+            diag = self.default_conv['diag']
+        txt4 = '  diagonalization=\''+diag+'\','
+        self.writetoinp(f, txt4)
+
+        # other convergence settings (list could be expanded)
         for x in self.convergence.keys():
-            if x=='mixing':
-                print >>f, '  mixing_beta='+str(self.convergence[x])+'d0,'
-            elif x=='maxsteps':
-                print >>f, '  electron_maxstep='+str(self.convergence[x])+','
-            elif x=='nmix':
-                print >>f, '  mixing_ndim='+str(self.convergence[x])+','
-            elif x=='mixing_mode':
-                print >>f, '  mixing_mode=\''+self.convergence[x]+'\','
+            txt = None
+            if x == 'nmix':
+                txt = '  mixing_ndim='+str(self.convergence[x])+','
+            elif x == 'mixing_mode':
+                txt = '  mixing_mode=\''+self.convergence[x]+'\','
+            if txt is not None:
+                self.writetoinp(f, txt)
+
         if self.startingpot is not None:
-            print >>f, '  startingpot=\''+self.startingpot+'\','
+            txt8 = '  startingpot=\''+self.startingpot+'\','
+            self.writetoinp(f, txt8)
         if self.startingwfc is not None:
-            print >>f, '  startingwfc=\''+self.startingwfc+'\','
+            txt9 = '  startingwfc=\''+self.startingwfc+'\','
+            self.writetoinp(f, txt9)
 
-        ### &IONS ###
+    def write_ions(self, f):
         if self.cancalc:
-            print >>f, '/\n&IONS\n  ion_dynamics=\'ase3\','
+            txt0 =  '/\n&IONS\n  ion_dynamics=\'ase3\','
         else:
-            print >>f, '/\n&IONS\n  ion_dynamics=\'bfgs\','
+            txt0 = '/\n&IONS\n  ion_dynamics=\'bfgs\','
+        self.writetoinp(f, txt0)
 
-        print >>f, '/\nCELL_PARAMETERS'
+        txt1 = '/\nCELL_PARAMETERS'
+        self.writetoinp(f, txt1)
         for i in range(3):
-            print >>f, '%21.15fd0 %21.15fd0 %21.15fd0' % (self.atoms.cell[i][0],self.atoms.cell[i][1],self.atoms.cell[i][2])
+            txt = '%21.15fd0 %21.15fd0 %21.15fd0' % (self.atoms.cell[i][0],self.atoms.cell[i][1],self.atoms.cell[i][2])
+            self.writetoinp(f, txt)
 
-        print >>f, 'ATOMIC_SPECIES'
+        txt2 = 'ATOMIC_SPECIES'
+        self.writetoinp(f, txt2)
         for species in self.species:   # PSP ORDERING FOLLOWS SPECIESINDEX
             el = species.strip('0123456789')
-            print >>f, species, self.specdict[el]['mass'][0], el+'.UPF'
-        
-        print >>f, 'ATOMIC_POSITIONS {crystal}'
+            txt = str(species) +' '+ str(self.specdict[el]['mass'][0]) +' '+ el+'.UPF'
+            self.writetoinp(f, txt)
+
+        txt3 = 'ATOMIC_POSITIONS {crystal}'
+        self.writetoinp(f, txt3)
         for species, mass, magmom, pos in self.specprops:
-            print >>f, '%-4s %21.15fd0 %21.15fd0 %21.15fd0' % (species,pos[0],pos[1],pos[2])
-        
-        print >>f, 'K_POINTS automatic'
-        print >>f, self.kpts[0], self.kpts[1],self.kpts[2],self.kptshift[0],self.kptshift[1],self.kptshift[2]
+            txt = '%-4s %21.15fd0 %21.15fd0 %21.15fd0' % (species,pos[0],pos[1],pos[2])
+            self.writetoinp(f, txt)
+
+        txt4 = 'K_POINTS AUTOMATIC'
+        self.writetoinp(f, txt4)
+        txt5 = '%i %i %i %i %i %i ' % (self.kpts[0], self.kpts[1], self.kpts[2], self.kptshift[0], self.kptshift[1], self.kptshift[2])
+        self.writetoinp(f, txt5)
+
+    def writeinputfile(self):
+        if self.atoms is None:
+            raise ValueError, 'no atoms defined'
+        if self.cancalc:
+            f = open(self.localtmp+'/pw.inp', 'w')
+        else:
+            f = open(self.pwinp, 'w')
+
+        # checks
+        self.efield = (self.field['status']==True)
+        self.dipfield = (self.dipole['status']==True)
+
+        ### &CONTROL ###
+        self.write_control(f)
+
+        ### &SYSTEM ###
+        self.write_system(f)
+
+        ### &ELECTRONS ###
+        self.write_electrons(f)
+
+        ### &IONS ###
+        self.write_ions(f)
 
         ### closing PWscf input file ###
         f.close()
         print '\nPWscf input file written\n'
-        
+
     def set_atoms(self, atoms):
         if self.atoms is None:
             self.atoms = atoms.copy()
