@@ -1193,4 +1193,14 @@ class espresso(Calculator):
         for e in err:
             msg += e
         raise RuntimeError, msg[:len(msg)-1]
-
+    """
+    def relax_cell_and_atoms(self):
+        self.stop()
+        oldmode = self.calcmode
+        self.calcmode=...
+        self.opt_algorithm='bfgs'
+        ...
+        self.recalculate=True
+        self.read(self.atoms)
+        self.calcmode = oldmode
+    """
