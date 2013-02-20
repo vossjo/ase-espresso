@@ -834,11 +834,13 @@ class espresso(Calculator):
                         a = self.cout.readline()
                         s.write(a)
                     self.ST = -float(a.split()[-2])*rydberg
-                    self.energy_free += 0.5*self.ST    
+                    self.energy_zero = self.energy_free + 0.5*self.ST
+                else:
+                    self.energy_zero = self.energy_free    
             else:
                 self.energy_free = None
+                self.energy_zero = None
 
-            self.energy_zero = self.energy_free
             a = self.cout.readline()
             s.write(a)
             s.flush()
@@ -898,8 +900,9 @@ class espresso(Calculator):
                     while a[:13]!='     smearing':
                         a = f.readline()
                     self.ST = -float(a.split()[-2])*rydberg
-                    self.energy_free += 0.5*self.ST
-                self.energy_zero = self.energy_free
+                    self.energy_zero = self.energy_free + 0.5*self.ST
+                else:
+                    self.energy_zero = self.energy_free
 
                 if self.U_projection_type == 'atomic':
                         a = f.readline()
