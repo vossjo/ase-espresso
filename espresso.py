@@ -195,7 +195,8 @@ class espresso(Calculator):
                                 'diag':'david'},
                  startingpot = None,
                  startingwfc = None,
-                 onlycreatepwinp=None):     #specify filename to only create pw input
+                 onlycreatepwinp = None,
+                 verbose = 'low'):     #specify filename to only create pw input
         
         self.outdir= outdir
         self.onlycreatepwinp = onlycreatepwinp 
@@ -233,6 +234,7 @@ class espresso(Calculator):
         self.convergence = convergence
         self.startingpot = startingpot
         self.startingwfc = startingwfc
+        self.verbose = verbose
         self.U = U
         self.J = J
         self.U_alpha = U_alpha
@@ -722,7 +724,8 @@ class espresso(Calculator):
 
         ### closing PWscf input file ###
         f.close()
-        print '\nPWscf input file %s written\n' % fname
+        if self.verbose == 'high':
+            print '\nPWscf input file %s written\n' % fname
         
     def set_atoms(self, atoms):
         if self.atoms is None or not self.started:
