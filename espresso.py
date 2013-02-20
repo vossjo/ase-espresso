@@ -449,10 +449,13 @@ class espresso(Calculator):
         if self.atoms is None:
             raise ValueError, 'no atoms defined'
         if self.cancalc:
-            f = open(self.localtmp+'/pw.inp', 'w')
+            fname = self.localtmp+'/pw.inp'
+            #f = open(self.localtmp+'/pw.inp', 'w')
         else:
-            f = open(self.pwinp, 'w')
-        
+            fname = self.pwinp
+            #f = open(self.pwinp, 'w')
+        f = open(fname, 'w')
+
         ### &CONTROL ###
         if self.calcmode!='hund':
             print >>f, '&CONTROL\n  calculation=\''+self.calcmode+'\',\n  prefix=\'calc\','
@@ -716,7 +719,10 @@ class espresso(Calculator):
         
         print >>f, 'K_POINTS automatic'
         print >>f, self.kpts[0], self.kpts[1],self.kpts[2],self.kptshift[0],self.kptshift[1],self.kptshift[2]
+
+        ### closing PWscf input file ###
         f.close()
+        print '\nPWscf input file %s written\n' % fname
         
     def set_atoms(self, atoms):
         if self.atoms is None or not self.started:
