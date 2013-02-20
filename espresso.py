@@ -38,7 +38,7 @@ def mklocaltmp(batch, odir):
         p.close()
         job = jobid
     else:
-        s = '.'
+        s = os.getcwd()
         job = ''
     if odir is None or len(odir)==0:
         p = os.popen('mktemp -d '+s+'/qe"'+job+'"_XXXXX', 'r')
@@ -195,8 +195,8 @@ class espresso(Calculator):
                                 'diag':'david'},
                  startingpot = None,
                  startingwfc = None,
-                 onlycreatepwinp = None,
-                 verbose = 'low'):     #specify filename to only create pw input
+                 onlycreatepwinp = None, #specify filename to only create pw input
+                 verbose = 'low'):
         
         self.outdir= outdir
         self.onlycreatepwinp = onlycreatepwinp 
@@ -457,7 +457,7 @@ class espresso(Calculator):
             fname = self.pwinp
             #f = open(self.pwinp, 'w')
         f = open(fname, 'w')
-
+        
         ### &CONTROL ###
         if self.calcmode!='hund':
             print >>f, '&CONTROL\n  calculation=\''+self.calcmode+'\',\n  prefix=\'calc\','
@@ -721,7 +721,6 @@ class espresso(Calculator):
         
         print >>f, 'K_POINTS automatic'
         print >>f, self.kpts[0], self.kpts[1],self.kpts[2],self.kptshift[0],self.kptshift[1],self.kptshift[2]
-
         ### closing PWscf input file ###
         f.close()
         if self.verbose == 'high':
@@ -820,6 +819,9 @@ class espresso(Calculator):
                 #throw this generic error
                 raise RuntimeError, 'SCF calculation failed'
             elif a=='' and self.calcmode in ('relax','scf','vc-relax','vc-md','md'):
+                self.checkerror()
+                #if checkerror shouldn't find an error here,
+                #throw this generic error
                 raise RuntimeError, 'SCF calculation didn\'t converge'
             self.atom_occ = atom_occ
             if self.calcmode in ('relax','scf','vc-relax','vc-md','md','hund'):
@@ -878,7 +880,41 @@ class espresso(Calculator):
             s.close()
             if self.opt_algorithm != 'ase3':
                 self.stop()
-            
+
+            #get final energy and forces for internal QE relaxation run
+            if self.calcmode in ('relax','vc-relax','vc-md','md'):
+                if self.opt_algorithm == 'ase3':
+                    self.stop()
+                p = os.popen('grep -n "!    total" '+self.localtmp+'/log | tail -1','r')
+                n = int(p.readline().split(':')[0])-1
+                p.close()
+                f = open(self.localtmp+'/log','r')
+                for i in range(n):
+                    f.readline()
+                self.energy_free = float(f.readline().split()[-2])*rydberg
+                # get S*T correction (there is none for Marzari-Vanderbilt=Cold smearing)
+                if self.occupations=='smearing' and self.calcmode!='hund' and self.smearing[0].upper()!='M' and self.smearing[0].upper()!='C':
+                    a = f.readline()
+                    while a[:13]!='     smearing':
+                        a = f.readline()
+                    self.ST = -float(a.split()[-2])*rydberg
+                    self.energy_free += 0.5*self.ST
+                self.energy_zero = self.energy_free
+
+                if self.U_projection_type == 'atomic':
+                        a = f.readline()
+                        while a[:11]!='     Forces':
+                            a = f.readline()
+                        f.readline()
+                        if not hasattr(self, 'forces'):
+                            self.forces = np.empty((self.natoms,3), np.float)
+                        for i in range(self.natoms):
+                            a = f.readline()
+                            forceinp = a.split()
+                            self.forces[i][:] = [float(x) for x in forceinp[len(forceinp)-3:]]
+                        self.forces *= rydberg_over_bohr                    
+                f.close()
+                
             self.checkerror()
     
 
