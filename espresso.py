@@ -157,7 +157,7 @@ class espresso(Calculator):
                  nbands = -10, 
                  kpts = (1,1,1),
                  kptshift = (0,0,0),
-                 mode = 'relax',
+                 mode = 'scf',
                  opt_algorithm = 'ase3',
                  fmax = 0.05,
                  cell_dynamics = None,
@@ -1193,14 +1193,39 @@ class espresso(Calculator):
         for e in err:
             msg += e
         raise RuntimeError, msg[:len(msg)-1]
-    """
-    def relax_cell_and_atoms(self):
+   
+    def relax_cell_and_atoms(self, 
+            cell_dynamics='bfgs', # {'none', 'sd', 'damp-pr', 'damp-w', 'bfgs'}
+            opt_algorithm='bfgs', # {'bfgs', 'damp'}
+            cell_factor=5.,
+            outdir=None,
+            ):
         self.stop()
         oldmode = self.calcmode
-        self.calcmode=...
-        self.opt_algorithm='bfgs'
-        ...
+        self.cell_dynamics=cell_dynamics
+        self.opt_algorithm=opt_algorithm
+        self.cell_factor=cell_factor
+        self.outdir = outdir 
+        
+        self.calcmode='vc-relax'
         self.recalculate=True
         self.read(self.atoms)
         self.calcmode = oldmode
-    """
+   
+    def relax_atoms(self,
+            opt_algorithm='bfgs',# {'bfgs', 'damp'}
+            cell_factor=5.,
+            outdir = None
+            ):
+        self.stop()
+        oldmode = self.calcmode
+        self.opt_algorithm=opt_algorithm
+        self.cell_factor=cell_factor
+        self.outdir = outdir
+       
+        self.calcmode='relax'
+        self.recalculate=True
+        self.read(self.atoms)
+        self.calcmode = oldmode
+ 
+ 
