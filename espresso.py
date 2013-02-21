@@ -847,35 +847,33 @@ class espresso(Calculator):
 
             if self.calcmode in ('relax','scf','vc-relax','vc-md','md'):
                 if self.opt_algorithm == 'ase3' and self.calcmode != 'scf':
-                    if self.U_projection_type == 'atomic':
-                        sys.stdout.flush()
-                        while a[:5]!=' !ASE':
-                            a = self.cout.readline()
-                            s.write(a)
-                        if not hasattr(self, 'forces'):
-                            self.forces = np.empty((self.natoms,3), np.float)
-                        for i in range(self.natoms):
-                            self.cout.readline()
-                        for i in range(self.natoms):
-                            self.forces[i][:] = [float(x) for x in self.cout.readline().split()]
-                        self.forces *= rydberg_over_bohr
+                    sys.stdout.flush()
+                    while a[:5]!=' !ASE':
+                        a = self.cout.readline()
+                        s.write(a)
+                    if not hasattr(self, 'forces'):
+                        self.forces = np.empty((self.natoms,3), np.float)
+                    for i in range(self.natoms):
+                        self.cout.readline()
+                    for i in range(self.natoms):
+                        self.forces[i][:] = [float(x) for x in self.cout.readline().split()]
+                    self.forces *= rydberg_over_bohr
                 else:
-                    if self.U_projection_type == 'atomic':
+                    a = self.cout.readline()
+                    s.write(a)
+                    while a[:11]!='     Forces':
                         a = self.cout.readline()
                         s.write(a)
-                        while a[:11]!='     Forces':
-                            a = self.cout.readline()
-                            s.write(a)
+                    a = self.cout.readline()
+                    s.write(a)
+                    if not hasattr(self, 'forces'):
+                        self.forces = np.empty((self.natoms,3), np.float)
+                    for i in range(self.natoms):
                         a = self.cout.readline()
                         s.write(a)
-                        if not hasattr(self, 'forces'):
-                            self.forces = np.empty((self.natoms,3), np.float)
-                        for i in range(self.natoms):
-                            a = self.cout.readline()
-                            s.write(a)
-                            forceinp = a.split()
-                            self.forces[i][:] = [float(x) for x in forceinp[len(forceinp)-3:]]
-                        self.forces *= rydberg_over_bohr
+                        forceinp = a.split()
+                        self.forces[i][:] = [float(x) for x in forceinp[len(forceinp)-3:]]
+                    self.forces *= rydberg_over_bohr
             else:
                 self.forces = None
             self.recalculate = False
