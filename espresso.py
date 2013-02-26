@@ -474,7 +474,7 @@ class espresso(Calculator):
             print >>f, '  tefield=.true.,'
             if dipfield:
                 print >>f, '  dipfield=.true.,'
-        if self.U_projection_type is 'atomic' and not self.dontcalcforces:
+        if not self.dontcalcforces:
             print >>f, '  tprnfor=.true.,'
             if self.calcstress:
                 print >>f, '  tstress=.true.,'
@@ -879,6 +879,9 @@ class espresso(Calculator):
                         self.forces = np.empty((self.natoms,3), np.float)
                     for i in range(self.natoms):
                         a = self.cout.readline()
+                        while a.find('force')<0:
+                            s.write(a)
+                            a = self.cout.readline()
                         s.write(a)
                         forceinp = a.split()
                         self.forces[i][:] = [float(x) for x in forceinp[len(forceinp)-3:]]
