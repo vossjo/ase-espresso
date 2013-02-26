@@ -157,7 +157,7 @@ class espresso(Calculator):
                  nbands = -10, 
                  kpts = (1,1,1),
                  kptshift = (0,0,0),
-                 mode = 'scf',
+                 mode = 'ase3',
                  opt_algorithm = 'ase3',
                  fmax = 0.05,
                  cell_dynamics = None,
@@ -240,8 +240,9 @@ class espresso(Calculator):
         self.U_alpha = U_alpha
         self.U_projection_type = U_projection_type
         self.atoms = None
-        self.started = False
         self.sigma_small = 1e-13
+        self.started = False
+        self.got_energy = False
 
         self.input_update() # Create the tmp output folder 
 
@@ -459,10 +460,12 @@ class espresso(Calculator):
         f = open(fname, 'w')
         
         ### &CONTROL ###
-        if self.calcmode!='hund':
-            print >>f, '&CONTROL\n  calculation=\''+self.calcmode+'\',\n  prefix=\'calc\','
-        else:
+        if self.calcmode=='ase3':
+            print >>f, '&CONTROL\n  calculation=\'relax\',\n  prefix=\'calc\','
+        elif self.calcmode=='hund':
             print >>f, '&CONTROL\n  calculation=\'scf\',\n  prefix=\'calc\','
+        else:
+            print >>f, '&CONTROL\n  calculation=\''+self.calcmode+'\',\n  prefix=\'calc\','
         print >>f, '  pseudo_dir=\''+self.psppath+'\','
         print >>f, '  outdir=\'.\','
         efield = (self.field['status']==True)
@@ -744,10 +747,13 @@ class espresso(Calculator):
         if self.atoms is None:
             self.set_atoms(atoms)
         x = atoms.positions-self.atoms.positions
-        if max(x.flat)>1E-13 or min(x.flat)<-1E-13 or not self.started:
+        if max(x.flat)>1E-13 or min(x.flat)<-1E-13 or (not self.started and not self.got_energy):
             self.recalculate = True
+            if self.opt_algorithm!='ase3':
+                self.stop()
             self.read(atoms)
-        self.atoms = atoms.copy()
+        else:
+            self.atoms = atoms.copy()
 
     def get_name(self):
         return 'QE-ASE3 interface'
@@ -768,6 +774,7 @@ class espresso(Calculator):
             if not fresh:
                 if self.opt_algorithm == 'ase3':
                     p = atoms.positions
+                    self.atoms = atoms.copy()
                     print >>self.cinp, 'G'
                     for x in p:
                         print >>self.cinp, ('%.15e %.15e %.15e' % (x[0],x[1],x[2])).replace('e','d')
@@ -818,13 +825,13 @@ class espresso(Calculator):
                 #if checkerror shouldn't find an error here,
                 #throw this generic error
                 raise RuntimeError, 'SCF calculation failed'
-            elif a=='' and self.calcmode in ('relax','scf','vc-relax','vc-md','md'):
+            elif a=='' and self.calcmode in ('ase3','relax','scf','vc-relax','vc-md','md'):
                 self.checkerror()
                 #if checkerror shouldn't find an error here,
                 #throw this generic error
                 raise RuntimeError, 'SCF calculation didn\'t converge'
             self.atom_occ = atom_occ
-            if self.calcmode in ('relax','scf','vc-relax','vc-md','md','hund'):
+            if self.calcmode in ('ase3','relax','scf','vc-relax','vc-md','md','hund'):
                 self.energy_free = float(a.split()[-2])*rydberg
                 # get S*T correction (there is none for Marzari-Vanderbilt=Cold smearing)
                 if self.occupations=='smearing' and self.calcmode!='hund' and self.smearing[0].upper()!='M' and self.smearing[0].upper()!='C':
@@ -841,11 +848,13 @@ class espresso(Calculator):
                 self.energy_free = None
                 self.energy_zero = None
 
+            self.got_energy = True
+
             a = self.cout.readline()
             s.write(a)
             s.flush()
 
-            if self.calcmode in ('relax','scf','vc-relax','vc-md','md'):
+            if self.calcmode in ('ase3','relax','scf','vc-relax','vc-md','md'):
                 if self.opt_algorithm == 'ase3' and self.calcmode != 'scf':
                     sys.stdout.flush()
                     while a[:5]!=' !ASE':
@@ -925,7 +934,7 @@ class espresso(Calculator):
         only the input file will be written for manual submission.
         """
         if not self.started:
-            a = self.atoms
+            self.atoms = atoms.copy()
             
             self.atoms2species()
             #s = a.get_chemical_symbols()
@@ -1015,7 +1024,7 @@ class espresso(Calculator):
         if self.batch:
             cdir = os.getcwd()
             os.chdir(self.localtmp)
-	    os.system(perHostMpiExec+' cp '+self.localtmp+'/pp.inp '+self.scratch)
+            os.system(perHostMpiExec+' cp '+self.localtmp+'/pp.inp '+self.scratch)
             os.system(perProcMpiExec+' -wdir '+self.scratch+' pp.x -in pp.inp >>'+self.localtmp+'/pp.log')
             os.chdir(cdir)
         else:
@@ -1167,7 +1176,14 @@ class espresso(Calculator):
 
 
     def checkerror(self):
-        p = os.popen('grep -n %%%%%%%%%%%%%%%% '+self.localtmp+'/log|tail -2','r')
+        p = os.popen('grep -n Giannozzi '+self.localtmp+'/log | tail -1','r')
+        try:
+            n = int(p.readline().split()[0].strip(':'))
+        except:
+            raise RuntimeError, 'Espresso executable doesn\'t seem to have been started.'
+        p.close()
+
+        p = os.popen(('tail -n +%d ' % n)+self.localtmp+'/log | grep -n %%%%%%%%%%%%%%%% |tail -2','r')
         s = p.readlines()
         p.close()
 
@@ -1180,7 +1196,7 @@ class espresso(Calculator):
         if b<1:
             return
         
-        p = os.popen(('tail -n +%d ' % a)+self.localtmp+('/log|head -%d' % b),'r')
+        p = os.popen(('tail -n +%d ' % (a+n-1))+self.localtmp+('/log|head -%d' % b),'r')
         err = p.readlines()
         p.close()
         
@@ -1196,34 +1212,54 @@ class espresso(Calculator):
             cell_dynamics='bfgs', # {'none', 'sd', 'damp-pr', 'damp-w', 'bfgs'}
             opt_algorithm='bfgs', # {'bfgs', 'damp'}
             cell_factor=5.,
-            outdir=None,
+            fmax=None,
+            press=None,
+            dpress=None
             ):
         self.stop()
         oldmode = self.calcmode
+        oldalgo = self.opt_algorithm
+        oldcell = self.cell_dynamics
+        oldfactor = self.cell_factor
         self.cell_dynamics=cell_dynamics
         self.opt_algorithm=opt_algorithm
         self.cell_factor=cell_factor
-        self.outdir = outdir 
+        self.oldfmax = self.fmax
+        self.oldpress = self.press
+        self.olddpress = self.dpress
         
+        if fmax is not None:
+            self.fmax = fmax
+        if press is not None:
+            self.press = press
+        if dpress is not None:
+            self.dpress = dpress
         self.calcmode='vc-relax'
         self.recalculate=True
         self.read(self.atoms)
         self.calcmode = oldmode
+        self.opt_algorithm = oldalgo
+        self.cell_dynamics = oldcell
+        self.cell_factor = oldfactor
+        self.fmax = oldfmax
+        self.press = oldpress
+        self.dpress = olddpress
    
     def relax_atoms(self,
-            opt_algorithm='bfgs',# {'bfgs', 'damp'}
-            cell_factor=5.,
-            outdir = None
+            opt_algorithm='bfgs', # {'bfgs', 'damp'}
+            fmax=None
             ):
         self.stop()
         oldmode = self.calcmode
+        oldalgo = self.opt_algorithm
         self.opt_algorithm=opt_algorithm
-        self.cell_factor=cell_factor
-        self.outdir = outdir
+        self.oldfmax = self.fmax
        
         self.calcmode='relax'
+        if fmax is not None:
+            self.fmax = fmax
         self.recalculate=True
         self.read(self.atoms)
         self.calcmode = oldmode
- 
- 
+        self.opt_algorithm = oldalgo
+        self.fmax = oldfmax
