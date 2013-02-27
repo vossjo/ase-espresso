@@ -967,7 +967,9 @@ class espresso(Calculator):
                 raise KeyError('Please use fix_magmom=True for sigma=0.0 eV and spinpol=True. Hopefully this is not an extended system...?')
         else:
             if self.spinpol and abs(self.sigma) <= self.sigma_small:
-                self.fix_magmom = True 
+                self.fix_magmom = True
+        if abs(self.sigma) <= self.sigma_small:
+            self.occupations = 'fixed'
 
     def start(self):
         if not self.started:
