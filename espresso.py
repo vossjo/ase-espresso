@@ -295,7 +295,7 @@ class espresso(Calculator):
             atexit.register(cleanup, self.localtmp, self.scratch, removewf, self.batch, self)
             self.cancalc = True
         else:
-            self.pwinp = onlycreatepwinp
+            self.pwinp = self.onlycreatepwinp
             self.localtmp=''
             self.cancalc = False
 
