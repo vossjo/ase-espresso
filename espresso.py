@@ -327,9 +327,9 @@ class espresso(Calculator):
             if key == 'xc':
                 self.xc = value
             if key == 'pw':
-                self.pw = value
+                self.pw = num2str(value)
             if key == 'dw':
-                self.dw = value
+                self.dw =num2str(value)
             if key == 'output':
                 self.output = value
             if key == 'convergence':
@@ -614,10 +614,7 @@ class espresso(Calculator):
                         Ui = self.U[el]
                     else:
                         Ui = '1D-40'
-                    if 'D' in Ui or 'd' in Ui or 'E' in Ui or 'e' in Ui:
-                        print >>f, '  Hubbard_U('+str(i+1)+')='+str(Ui)+','
-                    else:
-                        print >>f, '  Hubbard_U('+str(i+1)+')='+str(Ui)+'d0,'
+                    print >>f, '  Hubbard_U('+str(i+1)+')='+num2str(Ui)+','
             if self.J is not None:
                 for i,s in enumerate(self.species):
                     el = s.strip('0123456789')
@@ -627,10 +624,7 @@ class espresso(Calculator):
                     elif self.U.has_key(el):
                          Ji = self.J[el]
                     if Ji != 'KK':
-                        if 'D' in Ji or 'd' in Ji or 'E' in Ji or 'e' in Ji:
-                            print >>f, '  Hubbard_J('+str(i+1)+')='+str(Ji)+','
-                        else:
-                            print >>f, '  Hubbard_J('+str(i+1)+')='+str(Ji)+'d0,'
+                        print >>f, '  Hubbard_J('+str(i+1)+')='+num2str(Ji)+','
             if self.U_alpha is not None:
                 for i, s in enumerate(self.species):
                     el = s.strip('0123456789')
@@ -640,21 +634,7 @@ class espresso(Calculator):
                          U_alphai = self.U_alpha[el]
                     else:
                          U_alphai = '1D-40'
-                    if isinstance(U_alphai, str) and ('D' in U_alphai or 'd' in U_alphai or 
-                        'E' in U_alphai or 'e' in U_alphai):
-                         print >>f, '  Hubbard_alpha('+str(i+1)+')='+str(U_alphai)+','
-                    else:
-                         print >>f, '  Hubbard_alpha('+str(i+1)+')='+str(U_alphai)+'d0,'
-
-
-                    """
-                    if self.U_alpha.has_key(i):
-                        print >>f, '  Hubbard_alpha('+str(i+1)+')='+str(self.U_alpha[i])+'d0,'
-                    elif self.U_alpha.has_key(el):
-                        print >>f, '  Hubbard_alpha('+str(i+1)+')='+str(self.U_alpha[el])+'d0,'
-                    else:
-                        print >>f, '  Hubbard_alpha('+str(i+1)+')=1D-40'
-                    """
+                    print >>f, '  Hubbard_alpha('+str(i+1)+')='+num2str(U_alphai)+','
         
         if self.nosym:
             print >>f, '  nosym=.true.,'
@@ -880,7 +860,7 @@ class espresso(Calculator):
                     for i in range(self.natoms):
                         a = self.cout.readline()
                         while a.find('force')<0:
-                            s.write(a)
+                            s.write(a) 
                             a = self.cout.readline()
                         s.write(a)
                         forceinp = a.split()
@@ -1229,7 +1209,7 @@ class espresso(Calculator):
         self.cell_dynamics=cell_dynamics
         self.opt_algorithm=opt_algorithm
         self.cell_factor=cell_factor
-        self.oldfmax = self.fmax
+        oldfmax = self.fmax
         self.oldpress = self.press
         self.olddpress = self.dpress
         
@@ -1258,7 +1238,7 @@ class espresso(Calculator):
         oldmode = self.calcmode
         oldalgo = self.opt_algorithm
         self.opt_algorithm=opt_algorithm
-        self.oldfmax = self.fmax
+        oldfmax = self.fmax
        
         self.calcmode='relax'
         if fmax is not None:
