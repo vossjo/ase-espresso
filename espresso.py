@@ -244,7 +244,11 @@ class espresso(Calculator):
         self.started = False
         self.got_energy = False
 
-        self.input_update() # Create the tmp output folder 
+        # Variables that cannot be set by inputs
+        self.nvalence=None
+        self.nel = None 
+        # Auto create variables from input
+        self.input_update() 
 
 
     def input_update(self):
@@ -279,7 +283,8 @@ class espresso(Calculator):
                 self.conv_thr = self.convergence['energy']/rydberg
             else:
                 self.conv_thr = 1e-6/rydberg
-
+        self.started = False
+        self.got_energy = False
 
     def create_outdir(self):
         if self.onlycreatepwinp is None:
@@ -312,8 +317,8 @@ class espresso(Calculator):
         """
         for key, value in kwargs.items():
             if key == 'outdir':
-                self.outdir = value
                 self.create_outdir()
+                self.outdir = value
             if key == 'startingpot':
                 self.startingpot = value
             if key == 'startingwfc':
@@ -339,6 +344,7 @@ class espresso(Calculator):
             if key == 'kshift':
                 self.kshift = value
         self.input_update()
+        self.recalculate = True
 
     def __del__(self):
         try:
@@ -384,21 +390,21 @@ class espresso(Calculator):
                         elif atom.symbol in self.U:
                             Ulist.append(self.U[atom.symbol])
                         else:
-                            Ulist.append(0.)
+                            Ulist.append(num2str(0.))
                     if self.J is not None:
                         if i in self.J:
                             Jlist.append(self.J[i])
                         elif atom.symbol in self.J:                          
                             Jlist.append(self.J[atom.symbol])
                         else:
-                            Jlist.append(0.)
+                            Jlist.append(num2str(0.))
                     if self.U_alpha is not None:
                         if i in self.U_alpha:
                             U_alphalist.append(self.U_alpha[i])
                         elif atom.symbol in self.U_alpha:
                             U_alphalist.append(self.U_alpha[atom.symbol])
                         else:
-                            U_alphalist.append(0.)
+                            U_alphalist.append(num2str(0.))
             
             typedict[atype]['magmoms'] = list( set(maglist) )
             typedict[atype]['mass'] = list( set(masslist) )
@@ -446,7 +452,24 @@ class espresso(Calculator):
         self.species   = np.unique(speciesindex)
         self.nspecies  = len(self.species)
         self.specprops = specprops
-           
+
+    def get_nvalence(self):
+        nel = {}
+        for x in self.species:
+            el = x.strip('0123456789')
+            #get number of valence electrons from pseudopotential or paw setup
+            p = os.popen('egrep -i \'z\ valence|z_valence\' '+self.psppath+'/'+el+'.UPF | tr \'"\' \' \'','r')
+            for y in p.readline().split():
+                if y[0].isdigit() or y[0]=='.':
+                    nel[el] = int(round(float(y)))
+                    break
+            p.close()
+        nvalence = np.zeros(len(self.specprops))
+        for i,x in enumerate(self.specprops):
+            nvalence[i] = nel[x[0].strip('0123456789')]
+        if not self.spinpol:
+            nvalence /= 2 
+        return nvalence, nel
     
     def writeinputfile(self):
         if self.atoms is None:
@@ -519,22 +542,9 @@ class espresso(Calculator):
             if self.nbands>0:
                 print >>f, '  nbnd='+str(self.nbands)+','
             else:
-                n = 0
-                nel = {}
-                for x in self.species:
-                    el = x.strip('0123456789')
-                    #get number of valence electrons from pseudopotential or paw setup
-                    p = os.popen('egrep -i \'z\ valence|z_valence\' '+self.psppath+'/'+el+'.UPF | tr \'"\' \' \'','r')
-                    for y in p.readline().split():
-                        if y[0].isdigit() or y[0]=='.':
-                            nel[el] = int(round(float(y)))
-                            break
-                    p.close()
-                for x in self.specprops:
-                    n += nel[x[0].strip('0123456789')]
-                if not self.spinpol:
-                    n /= 2
-                print >>f, '  nbnd='+str(n-self.nbands)+','
+                if self.nvalence == None:
+                     self.nvalence, self.nel =  self.get_nvalence()
+                print >>f, '  nbnd='+str(np.sum(self.nvalence)-self.nbands)+','
         if abs(self.sigma)>1e-13:
             print >>f, '  occupations=\''+self.occupations+'\','
             print >>f, '  smearing=\''+self.smearing+'\','
@@ -546,10 +556,13 @@ class espresso(Calculator):
         if self.spinpol:
             print >>f, '  nspin=2,'
             spcount  = 1
+            if self.nel == None:
+                self.nvalence, self.nel = self.get_nvalence()
             for species in self.species: # FOLLOW SAME ORDERING ROUTINE AS FOR PSP                
                 magindex = int(string.join([i for i in species if i.isdigit()],''))
                 el  = species.strip('0123456789')
-                mag = self.specdict[el]['magmoms'][magindex-1]
+                mag = self.specdict[el]['magmoms'][magindex-1]/self.nel[el]
+                assert np.abs(mag) <= 1. # magnetization oversaturated!!!
                 print >>f, '  starting_magnetization(%d)=%s,' % (spcount,num2str(float(mag)))
                 spcount += 1
         print >>f, '  input_dft=\''+self.xc+'\','
@@ -613,7 +626,7 @@ class espresso(Calculator):
                     elif self.U.has_key(el):
                         Ui = self.U[el]
                     else:
-                        Ui = '1D-40'
+                        Ui = 0.0
                     print >>f, '  Hubbard_U('+str(i+1)+')='+num2str(Ui)+','
             if self.J is not None:
                 for i,s in enumerate(self.species):
@@ -633,7 +646,7 @@ class espresso(Calculator):
                     elif self.U.has_key(el):
                          U_alphai = self.U_alpha[el]
                     else:
-                         U_alphai = '1D-40'
+                         U_alphai = 0.0
                     print >>f, '  Hubbard_alpha('+str(i+1)+')='+num2str(U_alphai)+','
         
         if self.nosym:
