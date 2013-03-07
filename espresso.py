@@ -540,11 +540,11 @@ class espresso(Calculator):
         print >>f, '  ecutrho='+num2str(self.dw/rydberg)+','
         if self.nbands is not None:
             if self.nbands>0:
-                print >>f, '  nbnd='+str(self.nbands)+','
+                print >>f, '  nbnd='+str(int(self.nbands))+','
             else:
                 if self.nvalence == None:
                      self.nvalence, self.nel =  self.get_nvalence()
-                print >>f, '  nbnd='+str(np.sum(self.nvalence)-self.nbands)+','
+                print >>f, '  nbnd='+str(int(np.sum(self.nvalence)-self.nbands))+','
         if abs(self.sigma)>1e-13:
             print >>f, '  occupations=\''+self.occupations+'\','
             print >>f, '  smearing=\''+self.smearing+'\','
