@@ -15,8 +15,10 @@ bohr = 0.52917721092
 
 def get_total_energy(s):
     a = s.readline()
-    while a[:17]!='!    total energy':
+    while a!='' and a[:17]!='!    total energy':
         a = s.readline()
+    if a=='':
+        return None
     energy = float(a.split()[-2])*rydberg
     for i in range(9):
         s.readline()
@@ -94,10 +96,16 @@ atoms.get_forces = calc.notimpl
 atoms.get_stress = calc.notimpl
 
 #get total energy at first ionic step
-calc.set_energy(get_total_energy(s))
-
+en = get_total_energy(s)
+if en is not None:
+    calc.set_energy(en)
+else:
+    print >>stderr, 'no total energy found'
+    exit(3)
 
 traj = PickleTrajectory(argv[2], 'w')
+
+traj.write(atoms)
 
 a = s.readline()
 while a!='':
@@ -119,9 +127,13 @@ while a!='':
         else:
             atoms.set_scaled_positions(pos)
         #get total energy at 2nd,3rd,...nth ionic step
-        calc.set_energy(get_total_energy(s))
+        en = get_total_energy(s)
+        calc.set_energy(en)
         
-        traj.write(atoms)
+        if en is not None:
+            traj.write(atoms)
+        else:
+            break
     else:
         for i in range(3):
             cell[i][:] = s.readline().split()

@@ -173,6 +173,7 @@ class espresso(Calculator):
                  psppath = None,
                  spinpol = False,
                  outdir = None,
+                 txt = None,
                  calcstress = False,
                  smearing = 'fd',
                  sigma = 0.1,
@@ -239,6 +240,8 @@ class espresso(Calculator):
         self.J = J
         self.U_alpha = U_alpha
         self.U_projection_type = U_projection_type
+        self.txt = txt
+
         self.atoms = None
         self.sigma_small = 1e-13
         self.started = False
@@ -290,6 +293,12 @@ class espresso(Calculator):
         if self.onlycreatepwinp is None:
             self.batch = checkbatch()
             self.localtmp = mklocaltmp(self.batch, self.outdir)
+            if not self.txt:
+                self.log = self.localtmp+'/log'
+            elif self.txt[0]!='/':
+                self.log = self.sdir+'/log'
+            else:
+                self.log = self.txt
             if self.batch:
                 self.nodes,self.np = mpisetup(self.localtmp)
             self.scratch = mkscratch(self.batch, self.localtmp)
@@ -685,7 +694,7 @@ class espresso(Calculator):
             print >>f, '  startingwfc=\''+self.startingwfc+'\','
 
         ### &IONS ###
-        if self.opt_algorithm is not None:
+        if self.opt_algorithm is not None and self.calcmode not in ('scf','hund'):
             if self.cancalc:
                 print >>f, '/\n&IONS\n  ion_dynamics=\''+self.opt_algorithm+'\','
             else:
@@ -772,7 +781,7 @@ class espresso(Calculator):
                     for x in p:
                         print >>self.cinp, ('%.15e %.15e %.15e' % (x[0],x[1],x[2])).replace('e','d')
                 self.cinp.flush()
-            s = open(self.localtmp+'/log','a')
+            s = open(self.log,'a')
             a = self.cout.readline()
             s.write(a)
             atom_occ = {}
@@ -853,6 +862,7 @@ class espresso(Calculator):
                     while a[:5]!=' !ASE':
                         a = self.cout.readline()
                         s.write(a)
+                        s.flush()
                     if not hasattr(self, 'forces'):
                         self.forces = np.empty((self.natoms,3), np.float)
                     for i in range(self.natoms):
@@ -866,6 +876,7 @@ class espresso(Calculator):
                     while a[:11]!='     Forces':
                         a = self.cout.readline()
                         s.write(a)
+                        s.flush()
                     a = self.cout.readline()
                     s.write(a)
                     if not hasattr(self, 'forces'):
@@ -890,10 +901,10 @@ class espresso(Calculator):
             if self.calcmode in ('relax','vc-relax','vc-md','md'):
                 if self.opt_algorithm == 'ase3':
                     self.stop()
-                p = os.popen('grep -n "!    total" '+self.localtmp+'/log | tail -1','r')
+                p = os.popen('grep -n "!    total" '+self.log+' | tail -1','r')
                 n = int(p.readline().split(':')[0])-1
                 p.close()
-                f = open(self.localtmp+'/log','r')
+                f = open(self.log,'r')
                 for i in range(n):
                     f.readline()
                 self.energy_free = float(f.readline().split()[-2])*rydberg
@@ -973,7 +984,7 @@ class espresso(Calculator):
                 if self.calcmode!='hund':
                     self.cinp, self.cout = os.popen2(perProcMpiExec+' -wdir '+self.scratch+' pw.x -in pw.inp')
                 else:
-                    os.system(perProcMpiExec+' -wdir '+self.scratch+' pw.x -in pw.inp >>'+self.localtmp+'/log')
+                    os.system(perProcMpiExec+' -wdir '+self.scratch+' pw.x -in pw.inp >>'+self.log)
                     os.system("sed s/occupations.*/occupations=\\'fixed\\',/ <"+self.localtmp+"/pw.inp | sed s/ELECTRONS/ELECTRONS\\\\n\ \ startingwfc=\\'file\\',\\\\n\ \ startingpot=\\'file\\',/ | sed s/conv_thr.*/conv_thr="+num2str(self.conv_thr)+",/ | sed s/tot_magnetization.*/tot_magnetization="+num2str(self.totmag)+",/ >"+self.localtmp+"/pw2.inp")
                     os.system(perHostMpiExec+' cp '+self.localtmp+'/pw2.inp '+self.scratch)
                     self.cinp, self.cout = os.popen2(perProcMpiExec+' -wdir '+self.scratch+' pw.x -in pw2.inp')
@@ -983,7 +994,7 @@ class espresso(Calculator):
                 if self.calcmode!='hund':
                     self.cinp, self.cout = os.popen2('cd '+self.scratch+' ; '+'pw.x -in pw.inp')
                 else:
-                    os.system('cd '+self.scratch+' ; '+' pw.x -in pw.inp >>'+self.localtmp+'/log')
+                    os.system('cd '+self.scratch+' ; '+' pw.x -in pw.inp >>'+self.log)
                     os.system("sed s/occupations.*/occupations=\\'fixed\\',/ <"+self.localtmp+"/pw.inp | sed s/ELECTRONS/ELECTRONS\\\\n\ \ startingwfc=\\'file\\',\\\\n\ \ startingpot=\\'file\\',/ | sed s/conv_thr.*/conv_thr="+num2str(self.conv_thr)+",/ | sed s/tot_magnetization.*/tot_magnetization="+num2str(self.totmag)+",/ >"+self.localtmp+"/pw2.inp")
                     os.system('cp '+self.localtmp+'/pw2.inp '+self.scratch)
                     self.cinp, self.cout = os.popen2('cd '+self.scratch+' ; '+'pw.x -in pw2.inp')
@@ -996,12 +1007,13 @@ class espresso(Calculator):
                 #sending 'Q' to espresso tells it to quit cleanly
                 print >>self.cinp, 'Q'
             self.cinp.flush()
-            s = open(self.localtmp+'/log','a')
+            s = open(self.log,'a')
             a = self.cout.readline()
             s.write(a)
             while a!='':
                 a = self.cout.readline()
                 s.write(a)
+                s.flush()
             s.close()
             self.cinp.close()
             self.cout.close()
@@ -1081,11 +1093,11 @@ class espresso(Calculator):
 
         self.stop()
 
-        p = os.popen('grep -n Giannozzi '+self.localtmp+'/log | tail -1','r')
+        p = os.popen('grep -n Giannozzi '+self.log+'| tail -1','r')
         n = int(p.readline().split()[0].strip(':'))
         p.close()
         
-        s = open(self.localtmp+'/log','r')
+        s = open(self.log,'r')
         #skip over previous runs in log in case the current log has been
         #appended to old ones
         for i in range(n):
@@ -1159,7 +1171,7 @@ class espresso(Calculator):
 
         self.stop()
         
-        p = os.popen('grep -3 "total   stress" '+self.localtmp+'/log | tail -3','r')
+        p = os.popen('grep -3 "total   stress" '+self.log+' | tail -3','r')
         s = p.readlines()
         p.close()
         
@@ -1174,14 +1186,14 @@ class espresso(Calculator):
 
 
     def checkerror(self):
-        p = os.popen('grep -n Giannozzi '+self.localtmp+'/log | tail -1','r')
+        p = os.popen('grep -n Giannozzi '+self.log+' | tail -1','r')
         try:
             n = int(p.readline().split()[0].strip(':'))
         except:
             raise RuntimeError, 'Espresso executable doesn\'t seem to have been started.'
         p.close()
 
-        p = os.popen(('tail -n +%d ' % n)+self.localtmp+'/log | grep -n %%%%%%%%%%%%%%%% |tail -2','r')
+        p = os.popen(('tail -n +%d ' % n)+self.log+' | grep -n %%%%%%%%%%%%%%%% |tail -2','r')
         s = p.readlines()
         p.close()
 
@@ -1194,7 +1206,7 @@ class espresso(Calculator):
         if b<1:
             return
         
-        p = os.popen(('tail -n +%d ' % (a+n-1))+self.localtmp+('/log|head -%d' % b),'r')
+        p = os.popen(('tail -n +%d ' % (a+n-1))+self.log+('|head -%d' % b),'r')
         err = p.readlines()
         p.close()
         
@@ -1209,7 +1221,7 @@ class espresso(Calculator):
     def relax_cell_and_atoms(self, 
             cell_dynamics='bfgs', # {'none', 'sd', 'damp-pr', 'damp-w', 'bfgs'}
             opt_algorithm='bfgs', # {'bfgs', 'damp'}
-            cell_factor=5.,
+            cell_factor=1.2,
             fmax=None,
             press=None,
             dpress=None
@@ -1223,8 +1235,8 @@ class espresso(Calculator):
         self.opt_algorithm=opt_algorithm
         self.cell_factor=cell_factor
         oldfmax = self.fmax
-        self.oldpress = self.press
-        self.olddpress = self.dpress
+        oldpress = self.press
+        olddpress = self.dpress
         
         if fmax is not None:
             self.fmax = fmax
