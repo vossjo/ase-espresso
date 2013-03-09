@@ -927,6 +927,8 @@ class espresso(Calculator):
                             self.forces = np.empty((self.natoms,3), np.float)
                         for i in range(self.natoms):
                             a = f.readline()
+                            while a.find('force')<0:
+                                a = f.readline()
                             forceinp = a.split()
                             self.forces[i][:] = [float(x) for x in forceinp[len(forceinp)-3:]]
                         self.forces *= rydberg_over_bohr                    
