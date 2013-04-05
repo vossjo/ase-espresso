@@ -1,22 +1,35 @@
 #cluster-dependent definitions
-scratch = '/scratch'
-submitdir = '$LS_SUBCWD'
-jobid = '$LSB_BATCH_JID'
-getprocs = ' echo -e $LSB_HOSTS | sed s/" "/"\\\\n"/g >machinefile ;'\
-          +' uniq machinefile >uniqmachinefile ;'\
-          +' nodes=`wc -l <uniqmachinefile` ;'\
-          +' np=`wc -l <machinefile` '
-
 import os
-fin,fout = os.popen4('mpirun --version')
-mpiversion=fout.readlines()[0]
-mpiversion=mpiversion.split()[3]
-rsh_agent='orte_rsh_agent'
-if mpiversion[:3]=='1.4':
+
+scratch = '/scratch'
+submitdir = os.getenv('LS_SUBCWD')
+#check for batch
+if submitdir!=None:
+    procs = os.getenv('LSB_HOSTS').split()
+    jobid = os.getenv('LSB_BATCH_JID')
+    
+    nprocs = len(procs)
+    d = {}
+    for x in procs:
+        d[x] = 1
+        nodes = list(d.keys())
+    nnodes = len(nodes)
+
+    fin,fout = os.popen4('mpirun --version')
+    mpiversion=fout.readlines()[0]
+    mpiversion=mpiversion.split()[3]
+    rsh_agent='orte_rsh_agent'
+    if mpiversion[:3]=='1.4':
         rsh_agent='plm_rsh_agent'
         
-perHostMpiExec = 'mpiexec --mca '+rsh_agent+' /afs/slac.stanford.edu/package/lsf/bin.slac/gmmpirun_lsgrun.sh -machinefile uniqmachinefile -np `wc -l <uniqmachinefile`'
-perProcMpiExec = 'pam -g /afs/slac/g/suncat/bin/suncat-tsmpirun -x LD_LIBRARY_PATH'
+    perHostMpiExec = 'mpiexec --mca '+rsh_agent+' /afs/slac.stanford.edu/package/lsf/bin.slac/gmmpirun_lsgrun.sh -host '+','.join(nodes)+' -np '+str(nnodes)
+    perProcMpiExec = 'pam -g /afs/slac/g/suncat/bin/suncat-tsmpirun -x LD_LIBRARY_PATH'
+    # hack for suncat to make sure RHEL5 nfs disks are automounted
+    # must be done before changing directories, otherwise mpirun
+    # appears to do "getpwd" and sends the "/a" form of the name
+    # to the slave nodes - cpo
+    siteInit=perHostMpiExec + ' ls '+submitdir+'>/dev/null'
+    os.system(siteInit)
 
 from ase.calculators.general import Calculator
 import atexit
@@ -26,22 +39,18 @@ from types import FileType, StringType
 
 
 def checkbatch():
-    p = os.popen('echo '+jobid, 'r')
-    batch = (p.readline().strip()!='')
-    p.close()
+    batch = (os.getenv('LSB_HOSTS')!=None)
     return batch
 
 def mklocaltmp(batch, odir):
     if batch:
-        p = os.popen('echo '+submitdir,'r')
-        s = p.readline().strip()
-        p.close()
+        s = submitdir
         job = jobid
     else:
         s = os.getcwd()
         job = ''
     if odir is None or len(odir)==0:
-        p = os.popen('mktemp -d '+s+'/qe"'+job+'"_XXXXX', 'r')
+        p = os.popen('mktemp -d '+s+'/qe'+job+'_XXXXX', 'r')
         tdir = p.readline().strip()
         p.close()
     else:
@@ -59,7 +68,7 @@ def mkscratch(batch,localtmp):
     else:
         pernodeexec = ''
         job = ''
-    p = os.popen('mktemp -d '+scratch+'/qe"'+job+'"_XXXXX', 'r')
+    p = os.popen('mktemp -d '+scratch+'/qe'+job+'_XXXXX', 'r')
     tdir = p.readline().strip()
     p.close()
     if pernodeexec!='':
@@ -68,15 +77,6 @@ def mkscratch(batch,localtmp):
         os.system(pernodeexec + ' mkdir -p '+tdir)
         os.chdir(cdir)
     return tdir
-
-def mpisetup(tdir):
-    cdir = os.getcwd()
-    os.chdir(tdir)
-    p = os.popen(getprocs+' ; sh -c "echo $nodes $np"', 'r')
-    os.chdir(cdir)
-    nodes,np = p.readline().split()
-    p.close()
-    return nodes,np
 
 def cleanup(tmp, scratch, removewf, batch, calc):
     try:
@@ -96,9 +96,7 @@ def cleanup(tmp, scratch, removewf, batch, calc):
     os.chdir(cdir)
 
 def getsubmitorcurrentdir():
-    p = os.popen('echo '+submitdir, 'r')
-    s = p.readline().strip()
-    p.close()
+    s = submitdir
     if s!='':
         return s
     else:
@@ -299,8 +297,6 @@ class espresso(Calculator):
                 self.log = self.sdir+'/log'
             else:
                 self.log = self.txt
-            if self.batch:
-                self.nodes,self.np = mpisetup(self.localtmp)
             self.scratch = mkscratch(self.batch, self.localtmp)
             if self.output is not None and self.output.has_key('removewf'):
                 removewf = self.output['removewf']
