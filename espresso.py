@@ -1,35 +1,13 @@
 #cluster-dependent definitions
 import os
 
-scratch = '/scratch'
-submitdir = os.getenv('LS_SUBCWD')
-#check for batch
-if submitdir!=None:
-    procs = os.getenv('LSB_HOSTS').split()
-    jobid = os.getenv('LSB_BATCH_JID')
-    
-    nprocs = len(procs)
-    d = {}
-    for x in procs:
-        d[x] = 1
-        nodes = list(d.keys())
-    nnodes = len(nodes)
-
-    fin,fout = os.popen4('mpirun --version')
-    mpiversion=fout.readlines()[0]
-    mpiversion=mpiversion.split()[3]
-    rsh_agent='orte_rsh_agent'
-    if mpiversion[:3]=='1.4':
-        rsh_agent='plm_rsh_agent'
-        
-    perHostMpiExec = 'mpiexec --mca '+rsh_agent+' /afs/slac.stanford.edu/package/lsf/bin.slac/gmmpirun_lsgrun.sh -host '+','.join(nodes)+' -np '+str(nnodes)
-    perProcMpiExec = 'pam -g /afs/slac/g/suncat/bin/suncat-tsmpirun -x LD_LIBRARY_PATH'
-    # hack for suncat to make sure RHEL5 nfs disks are automounted
-    # must be done before changing directories, otherwise mpirun
-    # appears to do "getpwd" and sends the "/a" form of the name
-    # to the slave nodes - cpo
-    siteInit=perHostMpiExec + ' ls '+submitdir+'>/dev/null'
-    os.system(siteInit)
+try:
+    import espsite
+except:
+    print '*** ASE Espresso requires a site-specific espsite.py in PYTHONPATH.'
+    print '*** You may use espsite.py.example in the svn checkout as a template.'
+    raise ImportError
+site = espsite.config()
 
 from ase.calculators.general import Calculator
 import atexit
@@ -37,15 +15,10 @@ import sys, string
 import numpy as np
 from types import FileType, StringType
 
-
-def checkbatch():
-    batch = (os.getenv('LSB_HOSTS')!=None)
-    return batch
-
-def mklocaltmp(batch, odir):
-    if batch:
-        s = submitdir
-        job = jobid
+def mklocaltmp(odir):
+    if site.batch:
+        s = site.submitdir
+        job = site.jobid
     else:
         s = os.getcwd()
         job = ''
@@ -61,14 +34,14 @@ def mklocaltmp(batch, odir):
         os.system('mkdir -p '+tdir)
     return tdir
 
-def mkscratch(batch,localtmp):
-    if batch:
-        pernodeexec = perHostMpiExec
-        job = jobid
+def mkscratch(localtmp):
+    if site.batch:
+        pernodeexec = site.perHostMpiExec
+        job = site.jobid
     else:
         pernodeexec = ''
         job = ''
-    p = os.popen('mktemp -d '+scratch+'/qe'+job+'_XXXXX', 'r')
+    p = os.popen('mktemp -d '+site.scratch+'/qe'+job+'_XXXXX', 'r')
     tdir = p.readline().strip()
     p.close()
     if pernodeexec!='':
@@ -78,13 +51,13 @@ def mkscratch(batch,localtmp):
         os.chdir(cdir)
     return tdir
 
-def cleanup(tmp, scratch, removewf, batch, calc):
+def cleanup(tmp, scratch, removewf, calc):
     try:
         calc.stop()
     except:
         pass
-    if batch:
-        pernodeexec = perHostMpiExec
+    if site.batch:
+        pernodeexec = site.perHostMpiExec
     else:
         pernodeexec = ''
     if removewf:
@@ -96,7 +69,7 @@ def cleanup(tmp, scratch, removewf, batch, calc):
     os.chdir(cdir)
 
 def getsubmitorcurrentdir():
-    s = submitdir
+    s = site.submitdir
     if s!='':
         return s
     else:
@@ -289,20 +262,19 @@ class espresso(Calculator):
 
     def create_outdir(self):
         if self.onlycreatepwinp is None:
-            self.batch = checkbatch()
-            self.localtmp = mklocaltmp(self.batch, self.outdir)
+            self.localtmp = mklocaltmp(self.outdir)
             if not self.txt:
                 self.log = self.localtmp+'/log'
             elif self.txt[0]!='/':
                 self.log = self.sdir+'/log'
             else:
                 self.log = self.txt
-            self.scratch = mkscratch(self.batch, self.localtmp)
+            self.scratch = mkscratch(self.localtmp)
             if self.output is not None and self.output.has_key('removewf'):
                 removewf = self.output['removewf']
             else:
                 removewf = True
-            atexit.register(cleanup, self.localtmp, self.scratch, removewf, self.batch, self)
+            atexit.register(cleanup, self.localtmp, self.scratch, removewf, self)
             self.cancalc = True
         else:
             self.pwinp = self.onlycreatepwinp
@@ -975,17 +947,17 @@ class espresso(Calculator):
 
     def start(self):
         if not self.started:
-            if self.batch:
+            if site.batch:
                 cdir = os.getcwd()
                 os.chdir(self.localtmp)
-                os.system(perHostMpiExec+' cp '+self.localtmp+'/pw.inp '+self.scratch)
+                os.system(site.perHostMpiExec+' cp '+self.localtmp+'/pw.inp '+self.scratch)
                 if self.calcmode!='hund':
-                    self.cinp, self.cout = os.popen2(perProcMpiExec+' -wdir '+self.scratch+' pw.x -in pw.inp')
+                    self.cinp, self.cout = os.popen2(site.perProcMpiExec+' -wdir '+self.scratch+' pw.x -in pw.inp')
                 else:
-                    os.system(perProcMpiExec+' -wdir '+self.scratch+' pw.x -in pw.inp >>'+self.log)
+                    os.system(site.perProcMpiExec+' -wdir '+self.scratch+' pw.x -in pw.inp >>'+self.log)
                     os.system("sed s/occupations.*/occupations=\\'fixed\\',/ <"+self.localtmp+"/pw.inp | sed s/ELECTRONS/ELECTRONS\\\\n\ \ startingwfc=\\'file\\',\\\\n\ \ startingpot=\\'file\\',/ | sed s/conv_thr.*/conv_thr="+num2str(self.conv_thr)+",/ | sed s/tot_magnetization.*/tot_magnetization="+num2str(self.totmag)+",/ >"+self.localtmp+"/pw2.inp")
-                    os.system(perHostMpiExec+' cp '+self.localtmp+'/pw2.inp '+self.scratch)
-                    self.cinp, self.cout = os.popen2(perProcMpiExec+' -wdir '+self.scratch+' pw.x -in pw2.inp')
+                    os.system(site.perHostMpiExec+' cp '+self.localtmp+'/pw2.inp '+self.scratch)
+                    self.cinp, self.cout = os.popen2(site.perProcMpiExec+' -wdir '+self.scratch+' pw.x -in pw2.inp')
                 os.chdir(cdir)
             else:
                 os.system('cp '+self.localtmp+'/pw.inp '+self.scratch)
@@ -1029,11 +1001,11 @@ class espresso(Calculator):
         print >>f, '  plot_num=11,\n  filplot=\''+file+'\'\n/\n'
         print >>f, '&plot\n  iflag=3,\n  outputformat=3\n/'
         f.close()
-        if self.batch:
+        if site.batch:
             cdir = os.getcwd()
             os.chdir(self.localtmp)
-            os.system(perHostMpiExec+' cp '+self.localtmp+'/pp.inp '+self.scratch)
-            os.system(perProcMpiExec+' -wdir '+self.scratch+' pp.x -in pp.inp >>'+self.localtmp+'/pp.log')
+            os.system(site.perHostMpiExec+' cp '+self.localtmp+'/pp.inp '+self.scratch)
+            os.system(site.perProcMpiExec+' -wdir '+self.scratch+' pp.x -in pp.inp >>'+self.localtmp+'/pp.log')
             os.chdir(cdir)
         else:
             os.system('cp '+self.localtmp+'/pp.inp '+self.scratch)
