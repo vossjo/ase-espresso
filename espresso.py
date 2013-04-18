@@ -14,111 +14,14 @@ import atexit
 import sys, string
 import numpy as np
 from types import FileType, StringType
-
-def mklocaltmp(odir):
-    if site.batch:
-        s = site.submitdir
-        job = site.jobid
-    else:
-        s = os.getcwd()
-        job = ''
-    if odir is None or len(odir)==0:
-        p = os.popen('mktemp -d '+s+'/qe'+job+'_XXXXX', 'r')
-        tdir = p.readline().strip()
-        p.close()
-    else:
-        if odir[0]=='/':
-            tdir = odir
-        else:
-            tdir = s+'/'+odir
-        os.system('mkdir -p '+tdir)
-    return tdir
-
-def mkscratch(localtmp):
-    if site.batch:
-        pernodeexec = site.perHostMpiExec
-        job = site.jobid
-    else:
-        pernodeexec = ''
-        job = ''
-    p = os.popen('mktemp -d '+site.scratch+'/qe'+job+'_XXXXX', 'r')
-    tdir = p.readline().strip()
-    p.close()
-    if pernodeexec!='':
-        cdir = os.getcwd()
-        os.chdir(localtmp)
-        os.system(pernodeexec + ' mkdir -p '+tdir)
-        os.chdir(cdir)
-    return tdir
-
-def cleanup(tmp, scratch, removewf, calc):
-    try:
-        calc.stop()
-    except:
-        pass
-    if site.batch:
-        pernodeexec = site.perHostMpiExec
-    else:
-        pernodeexec = ''
-    if removewf:
-        os.system('rm -r '+scratch+'/*wfc* 2>/dev/null')
-    os.system('cp -r '+scratch+' '+tmp)
-    cdir = os.getcwd()
-    os.chdir(tmp)
-    os.system(pernodeexec + ' rm -r '+scratch+' 2>/dev/null')
-    os.chdir(cdir)
-
-def getsubmitorcurrentdir():
-    s = site.submitdir
-    if s!='':
-        return s
-    else:
-        return os.getcwd()
-
-def uniqueness(list1, list2):
-    """
-    Find the elements that are belonging to a group in both list1 and list2,
-    where a group is defines as 2 or more elements that share the same
-    value. 
-    """
-    assert len(list1) == len(list2)
-    if len(list1)==1:
-        return [1]
-    l1_u = np.unique(list1)
-    l2_u = np.unique(list2)
-    unique = np.zeros(len(list1))
-    kk = 0
-    for u_l1 in l1_u:
-        list1 == u_l1
-        UK1 = np.where(list1 == u_l1)[0]
-        UL1 = [pp in UK1 for pp in range(len(list1))]
-        for u_l2 in l2_u:
-            UK2 = np.where(list2 == u_l2)[0]
-            UL2 = [pp in UK2 for pp in range(len(list1))]
-            UUL = [UL1[pp]*UL2[pp] for pp in range(len(list1))]
-            if len(np.where(np.array(UUL) != 0)[0]) == 0:
-                continue 
-            kk += 1
-            unique += [kk*UUL[pp] for pp in range(len(list1))]
-    # fill out zeros
-    umax = np.max(unique)
-    zeros = np.where(unique==0)[0]
-    for ppk, pp in enumerate(zeros):
-        unique[pp] += ppk+umax
-    return unique.astype(int)
+from constants import *
+from utils import *
+from subdirs import *
 
 
-hartree = 27.21138505
-rydberg = 0.5*hartree
-bohr = 0.52917721092
-rydberg_over_bohr = rydberg / bohr
-
-#add 'd0' to floating point number to avoid random trailing digits in Fortran input routines
-def num2str(x):
-    s = str(x)
-    if s.find('e')<0:
-        s += 'd0'
-    return s
+# ase controlled pw.x's register themselves here, so they can be
+# stopped automatically
+espresso_calculators = []
 
 
 class espresso(Calculator):
@@ -168,7 +71,8 @@ class espresso(Calculator):
                  startingpot = None,
                  startingwfc = None,
                  onlycreatepwinp = None, #specify filename to only create pw input
-                 verbose = 'low'):
+                 single_calculator = True, #if True, only one espresso job will be running
+		 verbose = 'low'):
         
         self.outdir= outdir
         self.onlycreatepwinp = onlycreatepwinp 
@@ -211,6 +115,7 @@ class espresso(Calculator):
         self.J = J
         self.U_alpha = U_alpha
         self.U_projection_type = U_projection_type
+	self.single_calculator = single_calculator
         self.txt = txt
 
         self.atoms = None
@@ -232,7 +137,7 @@ class espresso(Calculator):
         self.create_outdir() # Create the tmp output folder 
 
         #sdir is the directory the script is run or submitted from
-        self.sdir = getsubmitorcurrentdir()
+        self.sdir = getsubmitorcurrentdir(site)
 
         if self.dw is None:
             self.dw = 10. * self.pw
@@ -262,19 +167,19 @@ class espresso(Calculator):
 
     def create_outdir(self):
         if self.onlycreatepwinp is None:
-            self.localtmp = mklocaltmp(self.outdir)
+            self.localtmp = mklocaltmp(self.outdir, site)
             if not self.txt:
                 self.log = self.localtmp+'/log'
             elif self.txt[0]!='/':
                 self.log = self.sdir+'/log'
             else:
                 self.log = self.txt
-            self.scratch = mkscratch(self.localtmp)
+            self.scratch = mkscratch(self.localtmp, site)
             if self.output is not None and self.output.has_key('removewf'):
                 removewf = self.output['removewf']
             else:
                 removewf = True
-            atexit.register(cleanup, self.localtmp, self.scratch, removewf, self)
+            atexit.register(cleanup, self.localtmp, self.scratch, removewf, self, site)
             self.cancalc = True
         else:
             self.pwinp = self.onlycreatepwinp
@@ -656,6 +561,8 @@ class espresso(Calculator):
                 print >>f, '  mixing_ndim='+str(self.convergence[x])+','
             elif x=='mixing_mode':
                 print >>f, '  mixing_mode=\''+self.convergence[x]+'\','
+            elif x=='diago_cg_maxiter':
+                print >>f, '  diago_cg_maxiter='+str(self.convergence[x])+','
         if self.startingpot is not None and self.calcmode!='hund':
             print >>f, '  startingpot=\''+self.startingpot+'\','
         if self.startingwfc is not None and self.calcmode!='hund':
@@ -947,6 +854,10 @@ class espresso(Calculator):
 
     def start(self):
         if not self.started:
+	    if self.single_calculator:
+		while len(espresso_calculators)>0:
+		    espresso_calculators.pop().stop()
+		espresso_calculators.append(self)
             if site.batch:
                 cdir = os.getcwd()
                 os.chdir(self.localtmp)
