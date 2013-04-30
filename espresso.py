@@ -70,6 +70,7 @@ class espresso(Calculator):
                                 'diag':'david'},
                  startingpot = None,
                  startingwfc = None,
+                 parflags = None,
                  onlycreatepwinp = None, #specify filename to only create pw input
                  single_calculator = True, #if True, only one espresso job will be running
 		 verbose = 'low'):
@@ -115,6 +116,10 @@ class espresso(Calculator):
         self.J = J
         self.U_alpha = U_alpha
         self.U_projection_type = U_projection_type
+        if parflags is None:
+            self.parflags = ''
+        else:
+            self.parflags = parflags
 	self.single_calculator = single_calculator
         self.txt = txt
 
@@ -863,12 +868,12 @@ class espresso(Calculator):
                 os.chdir(self.localtmp)
                 os.system(site.perHostMpiExec+' cp '+self.localtmp+'/pw.inp '+self.scratch)
                 if self.calcmode!='hund':
-                    self.cinp, self.cout = os.popen2(site.perProcMpiExec+' -wdir '+self.scratch+' pw.x -in pw.inp')
+                    self.cinp, self.cout = os.popen2(site.perProcMpiExec+' -wdir '+self.scratch+' pw.x '+self.parflags+' -in pw.inp')
                 else:
                     os.system(site.perProcMpiExec+' -wdir '+self.scratch+' pw.x -in pw.inp >>'+self.log)
                     os.system("sed s/occupations.*/occupations=\\'fixed\\',/ <"+self.localtmp+"/pw.inp | sed s/ELECTRONS/ELECTRONS\\\\n\ \ startingwfc=\\'file\\',\\\\n\ \ startingpot=\\'file\\',/ | sed s/conv_thr.*/conv_thr="+num2str(self.conv_thr)+",/ | sed s/tot_magnetization.*/tot_magnetization="+num2str(self.totmag)+",/ >"+self.localtmp+"/pw2.inp")
                     os.system(site.perHostMpiExec+' cp '+self.localtmp+'/pw2.inp '+self.scratch)
-                    self.cinp, self.cout = os.popen2(site.perProcMpiExec+' -wdir '+self.scratch+' pw.x -in pw2.inp')
+                    self.cinp, self.cout = os.popen2(site.perProcMpiExec+' -wdir '+self.scratch+' pw.x '+self.parflags+' -in pw2.inp')
                 os.chdir(cdir)
             else:
                 os.system('cp '+self.localtmp+'/pw.inp '+self.scratch)
@@ -916,7 +921,7 @@ class espresso(Calculator):
             cdir = os.getcwd()
             os.chdir(self.localtmp)
             os.system(site.perHostMpiExec+' cp '+self.localtmp+'/pp.inp '+self.scratch)
-            os.system(site.perProcMpiExec+' -wdir '+self.scratch+' pp.x -in pp.inp >>'+self.localtmp+'/pp.log')
+            os.system(site.perProcMpiExec+' -wdir '+self.scratch+' pp.x '+self.parflags+' -in pp.inp >>'+self.localtmp+'/pp.log')
             os.chdir(cdir)
         else:
             os.system('cp '+self.localtmp+'/pp.inp '+self.scratch)
