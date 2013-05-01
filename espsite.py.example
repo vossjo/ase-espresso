@@ -5,6 +5,8 @@ import os
 class config:
     def __init__(self):
         self.scratch = '/scratch'
+        if not os.path.exists(self.scratch):
+            self.scratch = '/tmp'
         self.submitdir = os.getenv('LS_SUBCWD')
         self.batch = self.submitdir!=None
         #check for batch
