@@ -479,7 +479,7 @@ class espresso(Calculator):
             if self.dipole.has_key('emaxpos'):
                 emaxpos = self.dipole['emaxpos']
             else:
-                emaxpos = 0.05
+                emaxpos = self.find_max_empty_space(edir)
             if self.dipole.has_key('eopreg'):
                 eopreg = self.dipole['eopreg']
             else:
@@ -1273,3 +1273,73 @@ class espresso(Calculator):
                 self.pdos[iatom][channel][j] += pdosinp[:,(j+1)]
         
         return self.dos_energies, self.dos_total, self.pdos
+
+
+    def find_max_empty_space(self, edir=3):
+        """
+        Assuming periodic boundary conditions, finds the largest
+        continuous segment of free, unoccupied space and returns
+        its midpoint in scaled coordinates (0 to 1) in the edir direction (default z).
+        """
+        position_array = self.atoms.get_scaled_positions()[..., edir - 1]  # 0-indexed direction
+        position_array.sort()
+        differences = np.diff(position_array)
+        differences = np.append(differences, position_array[0] + 1 - position_array[-1])  # through the PBC
+        max_diff_index = np.argmax(differences)
+        if max_diff_index == len(position_array) - 1:
+            return (position_array[0] + 1 + position_array[-1]) / 2.
+        else:
+            return (position_array[max_diff_index] + position_array[max_diff_index + 1]) / 2.
+
+
+    def get_work_function(self, pot_filename="pot.xsf", edir=3):
+        """
+        Calculates the work function of a calculation by subtracting the electrostatic
+        potential of the vacuum (from averaging the output of self.write_pot in the z
+        direction by default) from the Fermi energy.
+        Values used for average.x come from the espresso example for work function for a surface
+        TODO: Implement some sort of tuning for these parameters?
+        """
+        if pot_filename[0] != '/':
+            file = self.sdir + '/' + pot_filename
+        else:
+            file = pot_filename
+        self.update(self.atoms)
+        self.stop()
+        if not os.path.exists(file):
+            self.write_pot(pot_filename)
+
+        f = open(self.localtmp + '/avg.in', 'w')
+        print >>f, '1'
+        print >>f, self.sdir + "/" + pot_filename
+        print >>f, '1.D0'
+        print >>f, '1440'
+        print >>f, '3'
+        print >>f, '3.835000000'
+        print >>f, ''
+        f.close()
+        os.system('cp ' + self.localtmp + '/avg.in ' + self.scratch)
+        os.system('cd ' + self.scratch + ' ; ' + 'average.x < avg.in >>' + self.localtmp + '/avg.out')
+
+        # Pick a good place to sample vacuum level
+        cell_length = self.atoms.cell[edir - 1][edir - 1] / bohr
+        vacuum_pos = self.find_max_empty_space(edir) * cell_length
+        avg_out = open(self.localtmp + '/avg.out', 'r')
+        record = False
+        average_data = []
+        lines = list(avg_out)
+        for line in lines:
+            if len(line.split()) == 3 and line.split()[0] == "0.000000000":
+                record = True
+            elif len(line.split()) == 0:
+                record = False
+            if record == True:
+                average_data.append([float(i) for i in line.split()])
+        vacuum_energy = average_data[np.abs(np.array(average_data)[..., 0] - vacuum_pos).argmin()][2]
+
+        # Get the latest Fermi energy
+        fermi_data = os.popen('grep -n "Fermi" ' + self.log + ' | tail -1', 'r')
+        fermi_energy = float(fermi_data.readline().split()[-2])
+        fermi_data.close()
+
+        return vacuum_energy * rydberg - fermi_energy
