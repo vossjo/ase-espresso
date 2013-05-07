@@ -358,11 +358,13 @@ class espresso(Calculator):
             nvalence /= 2 
         return nvalence, nel
     
-    def writeinputfile(self):
+    def writeinputfile(self, filename='pw.inp', mode=None,
+        overridekpts=None, overridekptshift=None, suppressforcecalc=False,
+        usetetrahedra=False):
         if self.atoms is None:
             raise ValueError, 'no atoms defined'
         if self.cancalc:
-            fname = self.localtmp+'/pw.inp'
+            fname = self.localtmp+'/'+filename
             #f = open(self.localtmp+'/pw.inp', 'w')
         else:
             fname = self.pwinp
@@ -370,12 +372,16 @@ class espresso(Calculator):
         f = open(fname, 'w')
         
         ### &CONTROL ###
-        if self.calcmode=='ase3':
-            print >>f, '&CONTROL\n  calculation=\'relax\',\n  prefix=\'calc\','
-        elif self.calcmode=='hund':
-            print >>f, '&CONTROL\n  calculation=\'scf\',\n  prefix=\'calc\','
+        if mode is None:
+            if self.calcmode=='ase3':
+                print >>f, '&CONTROL\n  calculation=\'relax\',\n  prefix=\'calc\','
+            elif self.calcmode=='hund':
+                print >>f, '&CONTROL\n  calculation=\'scf\',\n  prefix=\'calc\','
+            else:
+                print >>f, '&CONTROL\n  calculation=\''+self.calcmode+'\',\n  prefix=\'calc\','
         else:
-            print >>f, '&CONTROL\n  calculation=\''+self.calcmode+'\',\n  prefix=\'calc\','
+                print >>f, '&CONTROL\n  calculation=\''+mode+'\',\n  prefix=\'calc\','
+
         print >>f, '  pseudo_dir=\''+self.psppath+'\','
         print >>f, '  outdir=\'.\','
         efield = (self.field['status']==True)
@@ -384,7 +390,7 @@ class espresso(Calculator):
             print >>f, '  tefield=.true.,'
             if dipfield:
                 print >>f, '  dipfield=.true.,'
-        if not self.dontcalcforces:
+        if not self.dontcalcforces and not suppressforcecalc:
             print >>f, '  tprnfor=.true.,'
             if self.calcstress:
                 print >>f, '  tstress=.true.,'
@@ -432,14 +438,17 @@ class espresso(Calculator):
                 if self.nvalence == None:
                      self.nvalence, self.nel =  self.get_nvalence()
                 print >>f, '  nbnd='+str(int(np.sum(self.nvalence)-self.nbands))+','
-        if abs(self.sigma)>1e-13:
-            print >>f, '  occupations=\''+self.occupations+'\','
-            print >>f, '  smearing=\''+self.smearing+'\','
-            print >>f, '  degauss='+num2str(self.sigma/rydberg)+','
+        if usetetrahedra:
+            print >>f, '  occupations=\'tetrahedra\','
         else:
-            if self.spinpol:
-                assert self.fix_magmom
-            print >>f, '  occupations=\'fixed\','
+            if abs(self.sigma)>1e-13:
+                print >>f, '  occupations=\''+self.occupations+'\','
+                print >>f, '  smearing=\''+self.smearing+'\','
+                print >>f, '  degauss='+num2str(self.sigma/rydberg)+','
+            else:
+                if self.spinpol:
+                    assert self.fix_magmom
+                print >>f, '  occupations=\'fixed\','
         if self.spinpol:
             print >>f, '  nspin=2,'
             spcount  = 1
@@ -605,7 +614,14 @@ class espresso(Calculator):
             print >>f, '%-4s %21.15fd0 %21.15fd0 %21.15fd0' % (species,pos[0],pos[1],pos[2])
         
         print >>f, 'K_POINTS automatic'
-        print >>f, self.kpts[0], self.kpts[1],self.kpts[2],self.kptshift[0],self.kptshift[1],self.kptshift[2]
+        if overridekpts is None:
+            print >>f, self.kpts[0], self.kpts[1],self.kpts[2],
+        else:
+            print >>f, overridekpts[0], overridekpts[1],overridekpts[2],
+        if overridekptshift is None:
+            print >>f, self.kptshift[0],self.kptshift[1],self.kptshift[2]
+        else:
+            print >>f, overridekptshift[0],overridekptshift[1],overridekptshift[2]
         ### closing PWscf input file ###
         f.close()
         if self.verbose == 'high':
@@ -1159,3 +1175,101 @@ class espresso(Calculator):
         self.calcmode = oldmode
         self.opt_algorithm = oldalgo
         self.fmax = oldfmax
+
+
+    #runs one of the .x binaries of the espresso suite
+    #inp is expected to be in self.localtmp
+    #log will be created in self.localtmp
+    def run_espressox(self, binary, inp, log):
+        if site.batch:
+            cdir = os.getcwd()
+            os.chdir(self.localtmp)
+            os.system(site.perHostMpiExec+' cp '+self.localtmp+'/'+inp+' '+self.scratch)
+            os.system(site.perProcMpiExec+' -wdir '+self.scratch+' '+binary+' '+self.parflags+' -in '+inp+' >>'+self.localtmp+'/'+log)
+            os.chdir(cdir)
+        else:
+            os.system('cp '+self.localtmp+'/'+inp+' '+self.scratch)
+            os.system('cd '+self.scratch+' ; '+binary+' -in '+inp+' >>'+self.localtmp+'/'+log)
+
+
+    def calc_pdos(self,
+        Emin = None,
+        Emax = None,
+        DeltaE = None,
+        nscf = False,
+        tetrahedra = False,
+        slab = False,
+        kpts = None,
+        kptshift = None,
+        ngauss = None,
+        sigma = None,
+        nscf_fermilevel=False):
+        
+        self.stop()
+        
+        p = os.popen('grep Fermi '+self.log+'|tail -1', 'r')
+        efermi = float(p.readline().split()[-2])
+        p.close() 
+        # run a nscf calculation with e.g. tetrahedra or more k-points etc.
+        if nscf:
+            self.writeinputfile(filename='pwnscf.inp',
+                mode='nscf', usetetrahedra=tetrahedra, overridekpts=kpts,
+                overridekptshift=kptshift, suppressforcecalc=True)
+            self.run_espressox('pw.x', 'pwnscf.inp', 'pwnscf.log')
+            if nscf_fermilevel:
+                p = os.popen('grep Fermi '+self.localtmp+'/pwnscf.log|tail -1', 'r')
+                efermi = float(p.readline().split()[-2])
+                p.close()
+        
+        # remove old wave function projections
+        os.system('rm -f '+self.scratch+'/*_wfc*')
+        # create input for projwfc.x
+        f = open(self.localtmp+'/pdos.inp', 'w')
+        print >>f, '&PROJWFC\n  prefix=\'calc\',\n  outdir=\'.\','
+        if Emin is not None:
+            print >>f, '  Emin = '+num2str(Emin+efermi)+','
+        if Emax is not None:
+            print >>f, '  Emax = '+num2str(Emax+efermi)+','
+        if DeltaE is not None:
+            print >>f, '  DeltaE = '+num2str(DeltaE)+','
+        if slab:
+            print >>f, '  lslab = .true.,'
+        if ngauss is not None:
+            print >>f, '  ngauss = '+str(ngauss)+','
+        if sigma is not None:
+            print >>f, '  degauss = '+num2str(sigma/rydberg)+','
+        print >>f, '/'
+        f.close()
+        # run projwfc.x
+        self.run_espressox('projwfc.x', 'pdos.inp', 'pdos.log')
+        
+        # read in total density of states
+        dos = np.genfromtxt(self.scratch+'/calc.pdos_tot')
+        if len(dos[0])>3:
+            nspin = 2
+        else:
+            nspin = 1
+        self.dos_energies = dos[:,0] - efermi
+        self.dos_total = dos[:,1]
+        npoints = len(self.dos_energies)
+        
+        channels = {'s':0, 'p':1, 'd':2, 'f': 3}
+        # read in projections onto atomic orbitals
+        self.pdos = [{} for i in range(self.natoms)]
+        p = os.popen('ls '+self.scratch+'/calc.pdos_atm*')
+        proj = p.readlines()
+        p.close()
+        for i,inp in enumerate(proj):
+            inpfile = inp.strip()
+            pdosinp = np.genfromtxt(inpfile)
+            spl = inpfile.split('#')
+            iatom = int(spl[1].split('(')[0])-1
+            channel = spl[2].split('(')[1].rstrip(')')
+            #ncomponents = 2*l+1 +1  (latter for m summed up)
+            ncomponents = (2*channels[channel]+2) * nspin
+            if not self.pdos[iatom].has_key(channel):
+                self.pdos[iatom][channel] = np.zeros((ncomponents,npoints), np.float)
+            for j in range(ncomponents):
+                self.pdos[iatom][channel][j] += pdosinp[:,(j+1)]
+        
+        return self.dos_energies, self.dos_total, self.pdos
