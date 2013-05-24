@@ -46,6 +46,8 @@ class espresso(Calculator):
                  xc = 'PBE',
                  psppath = None,
                  spinpol = False,
+                 noncollinear = False,
+                 spinorbit = False,
                  outdir = None,
                  txt = None,
                  calcstress = False,
@@ -73,6 +75,8 @@ class espresso(Calculator):
                  parflags = None,
                  onlycreatepwinp = None, #specify filename to only create pw input
                  single_calculator = True, #if True, only one espresso job will be running
+                 procrange = None, #let this espresso calculator run only on a subset of the requested cpus
+                 numcalcs = None,  #used / set by multiespresso class
 		 verbose = 'low'):
         
         self.outdir= outdir
@@ -98,6 +102,8 @@ class espresso(Calculator):
         self.smearing = smearing
         self.sigma = sigma
         self.spinpol = spinpol
+        self.noncollinear = noncollinear
+        self.spinorbit = spinorbit
         self.fix_magmom = fix_magmom
         self.tot_charge = tot_charge
         self.tot_magnetization = tot_magnetization
@@ -127,12 +133,29 @@ class espresso(Calculator):
         self.sigma_small = 1e-13
         self.started = False
         self.got_energy = False
+        self.only_init = False
 
         # Variables that cannot be set by inputs
         self.nvalence=None
         self.nel = None 
         # Auto create variables from input
         self.input_update() 
+
+        # Initialize lists of cpu subsets if needed
+        if procrange is None:
+            self.proclist = False
+        else:
+            self.proclist = True
+            procs = site.procs + []
+            procs.sort()
+            nprocs = len(procs)
+            self.myncpus = nprocs / numcalcs
+            i1 = self.myncpus * procrange
+            self.mycpus = self.localtmp+'/myprocs%04d.txt' % procrange
+            f = open(self.mycpus, 'w')
+            for i in range(i1,i1+self.myncpus):
+                print >>f, procs[i]
+            f.close()
 
 
     def input_update(self):
@@ -354,8 +377,8 @@ class espresso(Calculator):
         nvalence = np.zeros(len(self.specprops))
         for i,x in enumerate(self.specprops):
             nvalence[i] = nel[x[0].strip('0123456789')]
-        if not self.spinpol:
-            nvalence /= 2 
+        #if not self.spinpol:
+        #    nvalence /= 2 
         return nvalence, nel
     
     def writeinputfile(self, filename='pw.inp', mode=None,
@@ -451,6 +474,20 @@ class espresso(Calculator):
                 print >>f, '  occupations=\'fixed\','
         if self.spinpol:
             print >>f, '  nspin=2,'
+            spcount  = 1
+            if self.nel == None:
+                self.nvalence, self.nel = self.get_nvalence()
+            for species in self.species: # FOLLOW SAME ORDERING ROUTINE AS FOR PSP                
+                magindex = int(string.join([i for i in species if i.isdigit()],''))
+                el  = species.strip('0123456789')
+                mag = self.specdict[el]['magmoms'][magindex-1]/self.nel[el]
+                assert np.abs(mag) <= 1. # magnetization oversaturated!!!
+                print >>f, '  starting_magnetization(%d)=%s,' % (spcount,num2str(float(mag)))
+                spcount += 1
+        elif self.noncollinear:
+            print >>f, '  noncolin=.true.,'
+            if self.spinorbit:
+                print >>f, '  lspinorb=.true.'
             spcount  = 1
             if self.nel == None:
                 self.nvalence, self.nel = self.get_nvalence()
@@ -636,19 +673,24 @@ class espresso(Calculator):
                 raise ValueError, msg
             
             x = atoms.cell-self.atoms.cell
-            if max(x.flat)>1E-13 or min(x.flat)<-1E-13 or \
-                atoms.get_atomic_numbers()!=self.atoms.get_atomic_numbers():
+            if np.max(x)>1E-13 or np.min(x)<-1E-13 or \
+                (atoms.get_atomic_numbers()!=self.atoms.get_atomic_numbers()).any():
                 raise ValueError, msg
+            x = atoms.positions-self.atoms.positions
+            if np.max(x)>1E-13 or np.min(x)<-1E-13 or (not self.started and not self.got_energy):
+                self.recalculate = True
         self.atoms = atoms.copy()
 
     def update(self, atoms):
         if self.atoms is None:
             self.set_atoms(atoms)
         x = atoms.positions-self.atoms.positions
-        if max(x.flat)>1E-13 or min(x.flat)<-1E-13 or (not self.started and not self.got_energy):
+        if np.max(x)>1E-13 or np.min(x)<-1E-13 or (not self.started and not self.got_energy) or self.recalculate:
             self.recalculate = True
             if self.opt_algorithm!='ase3':
                 self.stop()
+            self.read(atoms)
+        elif self.only_init:
             self.read(atoms)
         else:
             self.atoms = atoms.copy()
@@ -662,14 +704,20 @@ class espresso(Calculator):
     def get_stress(self, atoms):
         raise NotImplementedError, 'stress interface not implemented\ntry using QE\'s internal relaxation routines instead'
 
-    def read(self, atoms):
-        if not self.started:
-            fresh = True
-            self.initialize(atoms)
-        else:
-            fresh = False
-        if self.recalculate:
-            if not fresh:
+    def init_only(self, atoms):
+        if self.atoms is None:
+            self.set_atoms(atoms)
+        x = atoms.positions-self.atoms.positions
+        if np.max(x)>1E-13 or np.min(x)<-1E-13 or (not self.started and not self.got_energy) or self.recalculate:
+            self.recalculate = True
+            if self.opt_algorithm!='ase3':
+                self.stop()
+
+            if not self.started:
+                self.initialize(atoms)
+                self.only_init = True
+            elif self.recalculate:
+                self.only_init = True
                 if self.opt_algorithm == 'ase3':
                     p = atoms.positions
                     self.atoms = atoms.copy()
@@ -677,17 +725,34 @@ class espresso(Calculator):
                     for x in p:
                         print >>self.cinp, ('%.15e %.15e %.15e' % (x[0],x[1],x[2])).replace('e','d')
                 self.cinp.flush()
+
+    def read(self, atoms):
+        if not self.started and not self.only_init:
+            fresh = True
+            self.initialize(atoms)
+        else:
+            fresh = False
+        if self.recalculate:
+            if not fresh and not self.only_init:
+                if self.opt_algorithm == 'ase3':
+                    p = atoms.positions
+                    self.atoms = atoms.copy()
+                    print >>self.cinp, 'G'
+                    for x in p:
+                        print >>self.cinp, ('%.15e %.15e %.15e' % (x[0],x[1],x[2])).replace('e','d')
+                self.cinp.flush()
+            self.only_init = False
             s = open(self.log,'a')
             a = self.cout.readline()
             s.write(a)
             atom_occ = {}
-            while a!='' and a[:17]!='!    total energy' and a[:13]!='     stopping': 
+            while a!='' and a[:17]!='!    total energy' and a[:13]!='     stopping' and a[:20]!='     convergence NOT': 
                 a = self.cout.readline()
                 s.write(a)
                 s.flush()
                 
                 if a[:19]=='     iteration #  1':
-                    while (a!='' and a[:17]!='!    total energy' and a[:13]!='     stopping' and 
+                    while (a!='' and a[:17]!='!    total energy' and a[:13]!='     stopping' and a[:20]!='     convergence NOT' and 
                            a[:22]!=' --- exit write_ns ---' ) :
                         a = self.cout.readline()   
                         s.write(a)
@@ -703,7 +768,7 @@ class espresso(Calculator):
                             atom_occ[atomnum-1]={}
                             atom_occ[atomnum-1][0]=N0
                 if a[:39]=='     End of self-consistent calculation':
-                    while a!='' and a[:17]!='!    total energy' and a[:13]!='     stopping':
+                    while a!='' and a[:17]!='!    total energy' and a[:13]!='     stopping' and a[:20]!='     convergence NOT':
                         a = self.cout.readline()
                         s.write(a) 
                         s.flush()
@@ -717,7 +782,10 @@ class espresso(Calculator):
                                 Nks=Nks[-1] # only taking the total occupation
                             atom_occ[atomnum-1]['ks']=Nks
                     break
-            if a[:13]=='     stopping':
+            if a[:20]=='     convergence NOT':
+                self.stop()
+                raise RuntimeError, 'scf cycles did not converge\nincrease maximum number of steps and/or decreasing mixing'
+            elif a[:13]=='     stopping':
                 self.stop()
                 self.checkerror()
                 #if checkerror shouldn't find an error here,
@@ -863,8 +931,8 @@ class espresso(Calculator):
         sp = mm.any()
         self.summed_magmoms = np.sum(mm)
         if sp:
-            if not self.spinpol:
-                raise KeyError('Explicitly specify spinpol=True for spin-polarized systems')
+            if not self.spinpol and not self.noncollinear:
+                raise KeyError('Explicitly specify spinpol=True or noncollinear=True for spin-polarized systems')
             elif abs(self.sigma) <= self.sigma_small and not self.fix_magmom:
                 raise KeyError('Please use fix_magmom=True for sigma=0.0 eV and spinpol=True. Hopefully this is not an extended system...?')
         else:
@@ -884,7 +952,10 @@ class espresso(Calculator):
                 os.chdir(self.localtmp)
                 os.system(site.perHostMpiExec+' cp '+self.localtmp+'/pw.inp '+self.scratch)
                 if self.calcmode!='hund':
-                    self.cinp, self.cout = os.popen2(site.perProcMpiExec+' -wdir '+self.scratch+' pw.x '+self.parflags+' -in pw.inp')
+                    if not self.proclist:
+                        self.cinp, self.cout = os.popen2(site.perProcMpiExec+' -wdir '+self.scratch+' pw.x '+self.parflags+' -in pw.inp')
+                    else:
+                        self.cinp, self.cout, self.cerr = os.popen3((site.perSpecProcMpiExec % (self.mycpus,self.myncpus))+' -wdir '+self.scratch+' pw.x '+self.parflags+' -in pw.inp|tee -a '+self.log+'0|sed -u "/   total energy\\|     stopping\\|     convergence NOT/w /dev/stderr"')
                 else:
                     os.system(site.perProcMpiExec+' -wdir '+self.scratch+' pw.x -in pw.inp >>'+self.log)
                     os.system("sed s/occupations.*/occupations=\\'fixed\\',/ <"+self.localtmp+"/pw.inp | sed s/ELECTRONS/ELECTRONS\\\\n\ \ startingwfc=\\'file\\',\\\\n\ \ startingpot=\\'file\\',/ | sed s/conv_thr.*/conv_thr="+num2str(self.conv_thr)+",/ | sed s/tot_magnetization.*/tot_magnetization="+num2str(self.totmag)+",/ >"+self.localtmp+"/pw2.inp")
@@ -921,11 +992,16 @@ class espresso(Calculator):
             self.cout.close()
             self.started = False
 
-    def write_pot(self, filename='pot.xsf'):
-        if filename[0]!='/':
-            file = self.sdir+'/'+filename
+
+    def topath(self, filename):
+        if os.path.isabs(filename):
+            return filename
         else:
-            file = filename
+            return os.path.join(self.sdir,filename)
+
+
+    def write_pot(self, filename='pot.xsf'):
+        file = self.topath(filename)
         self.update(self.atoms)
         self.stop()
         f = open(self.localtmp+'/pp.inp', 'w')
@@ -945,10 +1021,7 @@ class espresso(Calculator):
 
 
     def save_output(self, filename='calc.tgz'):
-        if filename[0]!='/':
-            file = self.sdir+'/'+filename
-        else:
-            file = filename
+        file = self.topath(filename)
         self.update(self.atoms)
         self.stop()
         
@@ -957,19 +1030,13 @@ class espresso(Calculator):
 
     def load_output(self, filename='calc.tgz'):
         self.stop()
-        if filename[0]!='/':
-            file = self.sdir+'/'+filename
-        else:
-            file = filename
+        file = self.topath(filename)
 
         os.system('tar xzf '+filename+' --directory='+self.scratch)
 
 
     def save_wf(self, filename='wf.tgz'):
-        if filename[0]!='/':
-            file = self.sdir+'/'+filename
-        else:
-            file = filename
+        file = self.topath(filename)
         self.update(self.atoms)
         self.stop()
         
@@ -978,10 +1045,7 @@ class espresso(Calculator):
 
     def load_wf(self, filename='wf.tgz'):
         self.stop()
-        if filename[0]!='/':
-            file = self.sdir+'/'+filename
-        else:
-            file = filename
+        file = self.topath(filename)
 
         os.system('tar xzf '+filename+' --directory='+self.scratch)
 
@@ -1180,16 +1244,72 @@ class espresso(Calculator):
     #runs one of the .x binaries of the espresso suite
     #inp is expected to be in self.localtmp
     #log will be created in self.localtmp
-    def run_espressox(self, binary, inp, log):
-        if site.batch:
+    def run_espressox(self, binary, inp, log=None, piperead=False,
+        parallel=True):
+        if log is None:
+            ll = ''
+        else:
+            ll = ' >>'+self.localtmp+'/'+log
+        if site.batch and parallel:
             cdir = os.getcwd()
             os.chdir(self.localtmp)
             os.system(site.perHostMpiExec+' cp '+self.localtmp+'/'+inp+' '+self.scratch)
-            os.system(site.perProcMpiExec+' -wdir '+self.scratch+' '+binary+' '+self.parflags+' -in '+inp+' >>'+self.localtmp+'/'+log)
+            if piperead:
+                p = os.popen(site.perProcMpiExec+' -wdir '+self.scratch+' '+binary+' '+self.parflags+' -in '+inp+ll, 'r')
+            else:
+                os.system(site.perProcMpiExec+' -wdir '+self.scratch+' '+binary+' '+self.parflags+' -in '+inp+ll)
             os.chdir(cdir)
         else:
             os.system('cp '+self.localtmp+'/'+inp+' '+self.scratch)
-            os.system('cd '+self.scratch+' ; '+binary+' -in '+inp+' >>'+self.localtmp+'/'+log)
+            if piperead:
+                p = os.popen('cd '+self.scratch+' ; '+binary+' -in '+inp+ll)
+            else:
+                os.system('cd '+self.scratch+' ; '+binary+' -in '+inp+ll)
+        if piperead:
+            return p
+
+    def run_ppx(self, inp, log=None, inputpp=[], plot=[],
+        output_format=5, iflag=3, piperead=False, parallel=True):
+        self.stop()
+        f = open(self.localtmp+'/'+inp, 'w')
+        print >>f, '&INPUTPP\n  prefix=\'calc\',\n  outdir=\'.\','
+        for a,b in inputpp:
+            if type(b)==float:
+                c = num2str(b)
+            elif type(b)==str:
+                c = "'"+b+"'"
+            else:
+                c = str(b)
+            print >>f, '  '+a+'='+c+','
+        print >>f, '/'
+        print >>f, '&PLOT\n  iflag=%d,\n  output_format=%d,' % (iflag,output_format)
+        for a,b in plot:
+            if type(b)==float:
+                c = num2str(b)
+            elif type(b)==str:
+                c = "'"+b+"'"
+            else:
+                c = str(b)
+            print >>f, '  '+a+'='+c+','
+        print >>f, '/'
+        f.close()
+        
+        if piperead:
+            return self.run_espressox('pp.x', inp, log=log,
+                piperead=piperead, parallel=parallel)
+        else:
+            self.run_espressox('pp.x', inp, log=log, parallel=parallel)
+
+    
+    def get_fermi_level(self):
+        self.stop()
+        try:
+            p = os.popen('grep Fermi '+self.log+'|tail -1', 'r')
+            efermi = float(p.readline().split()[-2])
+            p.close()
+        except:
+            raise RuntimeError, 'get_fermi_level called before DFT calculation was run'
+        return efermi
 
 
     def calc_pdos(self,
@@ -1203,13 +1323,11 @@ class espresso(Calculator):
         kptshift = None,
         ngauss = None,
         sigma = None,
-        nscf_fermilevel=False):
-        
-        self.stop()
-        
-        p = os.popen('grep Fermi '+self.log+'|tail -1', 'r')
-        efermi = float(p.readline().split()[-2])
-        p.close() 
+        nscf_fermilevel=False,
+        add_higher_channels=False):
+
+        efermi = self.get_fermi_level()
+
         # run a nscf calculation with e.g. tetrahedra or more k-points etc.
         if nscf:
             self.writeinputfile(filename='pwnscf.inp',
@@ -1244,7 +1362,7 @@ class espresso(Calculator):
         self.run_espressox('projwfc.x', 'pdos.inp', 'pdos.log')
         
         # read in total density of states
-        dos = np.genfromtxt(self.scratch+'/calc.pdos_tot')
+        dos = np.loadtxt(self.scratch+'/calc.pdos_tot')
         if len(dos[0])>3:
             nspin = 2
         else:
@@ -1259,6 +1377,7 @@ class espresso(Calculator):
         p = os.popen('ls '+self.scratch+'/calc.pdos_atm*')
         proj = p.readlines()
         p.close()
+        proj.sort()
         for i,inp in enumerate(proj):
             inpfile = inp.strip()
             pdosinp = np.genfromtxt(inpfile)
@@ -1269,10 +1388,496 @@ class espresso(Calculator):
             ncomponents = (2*channels[channel]+2) * nspin
             if not self.pdos[iatom].has_key(channel):
                 self.pdos[iatom][channel] = np.zeros((ncomponents,npoints), np.float)
-            for j in range(ncomponents):
-                self.pdos[iatom][channel][j] += pdosinp[:,(j+1)]
+                first = True
+            else:
+                first = False
+            if add_higher_channels or first:
+                for j in range(ncomponents):
+                    self.pdos[iatom][channel][j] += pdosinp[:,(j+1)]
         
         return self.dos_energies, self.dos_total, self.pdos
+
+
+    def read_3d_grid(self, stream, log):
+        f = open(self.localtmp+'/'+log, 'a')
+        x = stream.readline()
+        while x!='' and x[:11]!='DATAGRID_3D':
+            f.write(x)
+            x = stream.readline()
+        if x=='':
+            raise RuntimeError, 'error reading 3D data grid'
+        f.write(x)
+        nx, ny, nz = [int(y) for y in stream.readline().split()]
+        origin = np.array([float(y) for y in stream.readline().split()])
+        cell = np.empty((3,3), np.float)
+        for i in range(3):
+            cell[i][:] = [float(y) for y in stream.readline().split()]
+        data = np.reshape(np.fromfile(stream, count=nx*ny*nz, sep=' '),
+            (nx,ny,nz), order='F')
+
+        x = stream.readline()
+        while x!='':
+            f.write(x)
+            x = stream.readline()
+
+        f.close()
+        return (origin,cell,data)
+
+
+    def read_2d_grid(self, stream, log):
+        f = open(self.localtmp+'/'+log, 'a')
+        x = stream.readline()
+        while x!='' and x[:11]!='DATAGRID_2D':
+            f.write(x)
+            x = stream.readline()
+        if x=='':
+            raise RuntimeError, 'error reading 2D data grid'
+        f.write(x)
+        nx, ny = [int(y) for y in stream.readline().split()]
+        origin = np.array([float(y) for y in stream.readline().split()])
+        cell = np.empty((3,3), np.float)
+        for i in range(3):
+            cell[i][:] = [float(y) for y in stream.readline().split()]
+        data = np.reshape(np.fromfile(stream, count=nx*ny, sep=' '),
+            (nx,ny), order='F')
+
+        x = stream.readline()
+        while x!='':
+            f.write(x)
+            x = stream.readline()
+
+        f.close()
+        return (origin,cell,data)
+
+
+    def extract_charge_density(self, spin='both'):
+        if spin=='both' or spin==0:
+            s = 0
+        elif spin=='up' or spin==1:
+            s = 1
+        elif spin=='down' or spin==2:
+            s = 2
+        else:
+            raise ValueError, 'unknown spin component'
+        
+        p = self.run_ppx('charge.inp',
+            inputpp=[['plot_num',0],['spin_component',s]],
+            piperead=True, parallel=False)
+        origin,cell,data = self.read_3d_grid(p, 'charge.log')
+        p.close()
+        return (origin,cell,data)
+
+    def xsf_charge_density(self, xsf, spin='both'):
+        if spin=='both' or spin==0:
+            s = 0
+        elif spin=='up' or spin==1:
+            s = 1
+        elif spin=='down' or spin==2:
+            s = 2
+        else:
+            raise ValueError, 'unknown spin component'
+        
+        self.run_ppx('charge.inp',
+            inputpp=[['plot_num',0],['spin_component',s]],
+            plot=[['fileout',self.topath(xsf)]],
+            parallel=False, log='charge.log')
+
+
+    def extract_total_potential(self, spin='both'):
+        if spin=='both' or spin==0:
+            s = 0
+        elif spin=='up' or spin==1:
+            s = 1
+        elif spin=='down' or spin==2:
+            s = 2
+        else:
+            raise ValueError, 'unknown spin component'
+        
+        p = self.run_ppx('totalpot.inp',
+            inputpp=[['plot_num',1],['spin_component',s]],
+            piperead=True, parallel=False)
+        origin,cell,data = self.read_3d_grid(p, 'totalpot.log')
+        p.close()
+        return (origin,cell,data)
+
+    def xsf_total_potential(self, xsf, spin='both'):
+        if spin=='both' or spin==0:
+            s = 0
+        elif spin=='up' or spin==1:
+            s = 1
+        elif spin=='down' or spin==2:
+            s = 2
+        else:
+            raise ValueError, 'unknown spin component'
+        
+        self.run_ppx('totalpot.inp',
+            inputpp=[['plot_num',1],['spin_component',s]],
+            plot=[['fileout',self.topath(xsf)]],
+            parallel=False, log='totalpot.log')
+
+
+    def extract_local_ionic_potential(self):
+        p = self.run_ppx('vbare.inp',
+            inputpp=[['plot_num',2]],
+            piperead=True, parallel=False)
+        origin,cell,data = self.read_3d_grid(p, 'vbare.log')
+        p.close()
+        return (origin,cell,data)
+
+    def xsf_local_ionic_potential(self, xsf):
+        self.run_ppx('vbare.inp',
+            inputpp=[['plot_num',2]],
+            plot=[['fileout',self.topath(xsf)]],
+            parallel=False, log='vbare.log')
+
+
+    def extract_local_dos_at_efermi(self):
+        p = self.run_ppx('ldosef.inp',
+            inputpp=[['plot_num',3]],
+            piperead=True, parallel=False)
+        origin,cell,data = self.read_3d_grid(p, 'ldosef.log')
+        p.close()
+        return (origin,cell,data)
+
+    def xsf_local_dos_at_efermi(self, xsf):
+        self.run_ppx('ldosef.inp',
+            inputpp=[['plot_num',3]],
+            plot=[['fileout',self.topath(xsf)]],
+            parallel=False, log='ldosef.log')
+
+
+    def extract_local_entropy_density(self):
+        p = self.run_ppx('lentr.inp',
+            inputpp=[['plot_num',4]],
+            piperead=True, parallel=False)
+        origin,cell,data = self.read_3d_grid(p, 'lentr.log')
+        p.close()
+        return (origin,cell,data)
+
+    def xsf_local_entropy_density(self, xsf):
+        self.run_ppx('lentr.inp',
+            inputpp=[['plot_num',4]],
+            plot=[['fileout',self.topath(xsf)]],
+            parallel=False, log='lentr.log')
+
+
+    def extract_stm_data(self, bias):
+        p = self.run_ppx('stm.inp',
+            inputpp=[['plot_num',5],['sample_bias',bias/rydberg]],
+            piperead=True, parallel=False)
+        origin,cell,data = self.read_3d_grid(p, 'stm.log')
+        p.close()
+        return (origin,cell,data)
+
+    def xsf_stm_data(self, xsf, bias):
+        self.run_ppx('stm.inp',
+            inputpp=[['plot_num',5],['sample_bias',bias/rydberg]],
+            plot=[['fileout',self.topath(xsf)]],
+            parallel=False, log='stm.log')
+
+
+    def extract_magnetization_density(self):
+        p = self.run_ppx('magdens.inp',
+            inputpp=[['plot_num',6]],
+            piperead=True, parallel=False)
+        origin,cell,data = self.read_3d_grid(p, 'magdens.log')
+        p.close()
+        return (origin,cell,data)
+
+    def xsf_magnetization_density(self, xsf):
+        self.run_ppx('magdens.inp',
+            inputpp=[['plot_num',6]],
+            plot=[['fileout',self.topath(xsf)]],
+            parallel=False, log='magdens.log')
+
+
+    def extract_wavefunction_density(self, band, kpoint=0, spin='up',
+        gamma_with_sign=False):
+        if spin=='up' or spin==1:
+            s = 0
+        elif spin=='down' or spin==2:
+            s = 1
+        elif spin=='charge' or spin==0:
+            s = 0
+        elif spin=='x':
+            s = 1
+        elif spin=='y':
+            s = 2
+        elif spin=='z':
+            s = 3
+        else:
+            raise ValueError, 'unknown spin component'
+        if self.spinpol:
+            p = os.popen('grep "number of k points=" '+self.log+'|tail -1|tr \'=\' \' \'', 'r')
+            nkp = int(p.readline().split()[4])
+            p.close()
+            kp = kpoint+nkp/2*s
+        else:
+            kp = kpoint
+        inputpp = [['plot_num',7],['kpoint',kp],['kband',band]]
+        if gamma_with_sign:
+            inputpp.append(['lsign','.true.'])
+        if self.noncollinear:
+            inputpp.append(['spin_component',s])
+        p = self.run_ppx('wfdens.inp',
+            inputpp=inputpp,
+            piperead=True, parallel=True)
+        origin,cell,data = self.read_3d_grid(p, 'wfdens.log')
+        p.close()
+        return (origin,cell,data)
+
+    def xsf_wavefunction_density(self, xsf, band, kpoint=0, spin='up',
+        gamma_with_sign=False):
+        if spin=='up' or spin==1:
+            s = 0
+        elif spin=='down' or spin==2:
+            s = 1
+        elif spin=='charge' or spin==0:
+            s = 0
+        elif spin=='x':
+            s = 1
+        elif spin=='y':
+            s = 2
+        elif spin=='z':
+            s = 3
+        else:
+            raise ValueError, 'unknown spin component'
+        if self.spinpol:
+            p = os.popen('grep "number of k points=" '+self.log+'|tail -1|tr \'=\' \' \'', 'r')
+            nkp = int(p.readline().split()[4])
+            p.close()
+            kp = kpoint+nkp/2*s
+        else:
+            kp = kpoint
+        inputpp = [['plot_num',7],['kpoint',kp],['kband',band]]
+        if gamma_with_sign:
+            inputpp.append(['lsign','.true.'])
+        if self.noncollinear:
+            inputpp.append(['spin_component',s])
+        self.run_ppx('wfdens.inp',
+            inputpp=inputpp,
+            plot=[['fileout',self.topath(xsf)]],
+            parallel=True, log='wfdens.log')
+
+
+    def extract_electron_localization_function(self):
+        p = self.run_ppx('elf.inp',
+            inputpp=[['plot_num',8]],
+            piperead=True, parallel=False)
+        origin,cell,data = self.read_3d_grid(p, 'elf.log')
+        p.close()
+        return (origin,cell,data)
+
+    def xsf_electron_localization_function(self, xsf):
+        self.run_ppx('elf.inp',
+            inputpp=[['plot_num',8]],
+            plot=[['fileout',self.topath(xsf)]],
+            parallel=False, log='elf.log')
+
+
+    def extract_density_minus_atomic(self):
+        p = self.run_ppx('dens_wo_atm.inp',
+            inputpp=[['plot_num',9]],
+            piperead=True, parallel=False)
+        origin,cell,data = self.read_3d_grid(p, 'dens_wo_atm.log')
+        p.close()
+        return (origin,cell,data)
+
+    def xsf_density_minus_atomic(self, xsf):
+        self.run_ppx('dens_wo_atm.inp',
+            inputpp=[['plot_num',9]],
+            plot=[['fileout',self.topath(xsf)]],
+            parallel=False, log='dens_wo_atm.log')
+
+
+    def extract_int_local_dos(self, spin='both', emin=None, emax=None):
+        if spin=='both' or spin==0:
+            s = 0
+        elif spin=='up' or spin==1:
+            s = 1
+        elif spin=='down' or spin==2:
+            s = 2
+        else:
+            raise ValueError, 'unknown spin component'
+        
+        inputpp=[['plot_num',10],['spin_component',s]]
+        efermi = self.get_fermi_level()
+        if emin is not None:
+            inputpp.append(['emin',emin-efermi])
+        if emax is not None:
+            inputpp.append(['emax',emax-efermi])
+        
+        p = self.run_ppx('ildos.inp',
+            inputpp=inputpp,
+            piperead=True, parallel=False)
+        origin,cell,data = self.read_3d_grid(p, 'ildos.log')
+        p.close()
+        return (origin,cell,data)
+
+    def xsf_int_local_dos(self, xsf, spin='both', emin=None, emax=None):
+        if spin=='both' or spin==0:
+            s = 0
+        elif spin=='up' or spin==1:
+            s = 1
+        elif spin=='down' or spin==2:
+            s = 2
+        else:
+            raise ValueError, 'unknown spin component'
+        
+        inputpp=[['plot_num',10],['spin_component',s]]
+        efermi = self.get_fermi_level()
+        if emin is not None:
+            inputpp.append(['emin',emin-efermi])
+        if emax is not None:
+            inputpp.append(['emax',emax-efermi])
+        
+        self.run_ppx('ildos.inp',
+            inputpp=inputpp,
+            plot=[['fileout',self.topath(xsf)]],
+            parallel=False, log='ildos.log')
+
+
+    def extract_ionic_and_hartree_potential(self):
+        p = self.run_ppx('potih.inp',
+            inputpp=[['plot_num',11]],
+            piperead=True, parallel=False)
+        origin,cell,data = self.read_3d_grid(p, 'potih.log')
+        p.close()
+        return (origin,cell,data)
+
+    def xsf_ionic_and_hartree_potential(self, xsf):
+        self.run_ppx('potih.inp',
+            inputpp=[['plot_num',11]],
+            plot=[['fileout',self.topath(xsf)]],
+            parallel=False, log='potih.log')
+
+
+    def extract_sawtooth_potential(self):
+        p = self.run_ppx('sawtooth.inp',
+            inputpp=[['plot_num',12]],
+            piperead=True, parallel=False)
+        origin,cell,data = self.read_3d_grid(p, 'sawtooth.log')
+        p.close()
+        return (origin,cell,data)
+
+    def xsf_ionic_and_hartree_potential(self, xsf):
+        self.run_ppx('sawtooth.inp',
+            inputpp=[['plot_num',12]],
+            plot=[['fileout',self.topath(xsf)]],
+            parallel=False, log='sawtooth.log')
+
+
+    def extract_noncollinear_magnetization(self, spin='all'):
+        if spin=='all' or spin=='charge' or spin==0:
+            s = 0
+        elif spin=='x':
+            s = 1
+        elif spin=='y':
+            s = 2
+        elif spin=='z':
+            s = 3
+        else:
+            raise ValueError, 'unknown spin component'
+        p = self.run_ppx('noncollmag.inp',
+            inputpp=[['plot_num',13],['spin_component',s]],
+            piperead=True, parallel=False)
+        origin,cell,data = self.read_3d_grid(p, 'noncollmag.log')
+        p.close()
+        return (origin,cell,data)
+
+    def xsf_noncollinear_magnetization(self, xsf, spin='all'):
+        if spin=='all' or spin=='charge' or spin==0:
+            s = 0
+        elif spin=='x':
+            s = 1
+        elif spin=='y':
+            s = 2
+        elif spin=='z':
+            s = 3
+        else:
+            raise ValueError, 'unknown spin component'
+        self.run_ppx('noncollmag.inp',
+            inputpp=[['plot_num',13],['spin_component',s]],
+            plot=[['fileout',self.topath(xsf)]],
+            parallel=False)
+
+
+    def extract_ae_charge_density(self, spin='both'):
+        if spin=='both' or spin==0:
+            s = 0
+        elif spin=='up' or spin==1:
+            s = 1
+        elif spin=='down' or spin==2:
+            s = 2
+        else:
+            raise ValueError, 'unknown spin component'
+        
+        p = self.run_ppx('aecharge.inp',
+            inputpp=[['plot_num',17],['spin_component',s]],
+            piperead=True, parallel=False)
+        origin,cell,data = self.read_3d_grid(p, 'aecharge.log')
+        p.close()
+        return (origin,cell,data)
+
+    def xsf_ae_charge_density(self, xsf, spin='both'):
+        if spin=='both' or spin==0:
+            s = 0
+        elif spin=='up' or spin==1:
+            s = 1
+        elif spin=='down' or spin==2:
+            s = 2
+        else:
+            raise ValueError, 'unknown spin component'
+        
+        self.run_ppx('aecharge.inp',
+            inputpp=[['plot_num',17],['spin_component',s]],
+            plot=[['fileout',self.topath(xsf)]],
+            parallel=False, log='aecharge.log')
+
+
+    def extract_noncollinear_xcmag(self):
+        p = self.run_ppx('ncxcmag.inp',
+            inputpp=[['plot_num',18]],
+            piperead=True, parallel=False)
+        origin,cell,data = self.read_3d_grid(p, 'ncxcmag.log')
+        p.close()
+        return (origin,cell,data)
+
+    def xsf_noncollinear_xcmag(self, xsf):
+        self.run_ppx('ncxcmag.inp',
+            inputpp=[['plot_num',18]],
+            plot=[['fileout',self.topath(xsf)]],
+            parallel=False, log='ncxcmag.log')
+
+
+    def extract_reduced_density_gradient(self):
+        p = self.run_ppx('redgrad.inp',
+            inputpp=[['plot_num',19]],
+            piperead=True, parallel=False)
+        origin,cell,data = self.read_3d_grid(p, 'redgrad.log')
+        p.close()
+        return (origin,cell,data)
+
+    def xsf_reduced_density_gradient(self, xsf):
+        self.run_ppx('redgrad.inp',
+            inputpp=[['plot_num',19]],
+            plot=[['fileout',self.topath(xsf)]],
+            parallel=False, log='redgrad.log')
+
+
+    def extract_middle_density_hessian_eig(self):
+        p = self.run_ppx('mideig.inp',
+            inputpp=[['plot_num',20]],
+            piperead=True, parallel=False)
+        origin,cell,data = self.read_3d_grid(p, 'mideig.log')
+        p.close()
+        return (origin,cell,data)
+
+    def xsf_middle_density_hessian_eig(self, xsf):
+        self.run_ppx('mideig.inp',
+            inputpp=[['plot_num',20]],
+            plot=[['fileout',self.topath(xsf)]],
+            parallel=False, log='mideig.log')
 
 
     def find_max_empty_space(self, edir=3):
@@ -1343,3 +1948,8 @@ class espresso(Calculator):
         fermi_data.close()
 
         return vacuum_energy * rydberg - fermi_energy
+
+
+    def get_world(self):
+        from worldstub import world
+        return world(site.nprocs)

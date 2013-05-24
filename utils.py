@@ -14,7 +14,6 @@ def uniqueness(list1, list2):
     unique = np.zeros(len(list1))
     kk = 0
     for u_l1 in l1_u:
-        list1 == u_l1
         UK1 = np.where(list1 == u_l1)[0]
         UL1 = [pp in UK1 for pp in range(len(list1))]
         for u_l2 in l2_u:

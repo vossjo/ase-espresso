@@ -12,9 +12,11 @@ class config:
         #check for batch
         if self.batch:
             procs = os.getenv('LSB_HOSTS').split()
+            self.procs = procs
             self.jobid = os.getenv('LSB_BATCH_JID')
     
             nprocs = len(procs)
+            self.nprocs = nprocs
             d = {}
             for x in procs:
                 d[x] = 1
@@ -30,6 +32,7 @@ class config:
         
             self.perHostMpiExec = 'mpiexec --mca '+rsh_agent+' /afs/slac.stanford.edu/package/lsf/bin.slac/gmmpirun_lsgrun.sh -host '+','.join(nodes)+' -np '+str(nnodes)
             self.perProcMpiExec = 'pam -g /afs/slac/g/suncat/bin/suncat-tsmpirun -x LD_LIBRARY_PATH'
+            self.perSpecProcMpiExec = 'mpiexec --mca '+rsh_agent+' /afs/slac.stanford.edu/package/lsf/bin.slac/gmmpirun_lsgrun.sh -machinefile %s -np %d'
             # hack for suncat to make sure RHEL5 nfs disks are automounted
             # must be done before changing directories, otherwise mpirun
             # appears to do "getpwd" and sends the "/a" form of the name
