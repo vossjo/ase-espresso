@@ -743,6 +743,10 @@ class espresso(Calculator):
                 self.cinp.flush()
             self.only_init = False
             s = open(self.log,'a')
+            s.write('     python dir  : '+os.path.dirname(__file__)+'\n')
+            exedir = os.path.dirname(os.popen('which pw.x').readline())
+            s.write('     espresso dir: '+exedir+'\n')
+            s.write('     pseudo dir  : '+self.psppath+'\n')
             a = self.cout.readline()
             s.write(a)
             atom_occ = {}
