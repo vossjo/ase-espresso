@@ -1,4 +1,4 @@
-#cluster-dependent definitions
+svnver = 'SVNVERSION'
 import os
 
 try:
@@ -17,7 +17,6 @@ from types import FileType, StringType
 from constants import *
 from utils import *
 from subdirs import *
-
 
 # ase controlled pw.x's register themselves here, so they can be
 # stopped automatically
@@ -128,6 +127,9 @@ class espresso(Calculator):
             self.parflags = parflags
 	self.single_calculator = single_calculator
         self.txt = txt
+
+        self.mypath = os.path.abspath(os.path.dirname(__file__))
+        self.writeversion = True
 
         self.atoms = None
         self.sigma_small = 1e-13
@@ -727,6 +729,16 @@ class espresso(Calculator):
                 self.cinp.flush()
 
     def read(self, atoms):
+        if self.writeversion:
+            self.writeversion = False
+            s = open(self.log,'a')
+            s.write('  python dir         : '+self.mypath+'\n')
+            exedir = os.path.dirname(os.popen('which pw.x').readline())
+            s.write('  espresso dir       : '+exedir+'\n')
+            s.write('  pseudo dir         : '+self.psppath+'\n')
+            s.write('  espresso py svn    : '+svnver+'\n\n\n')
+            s.close()
+
         if not self.started and not self.only_init:
             fresh = True
             self.initialize(atoms)
@@ -743,10 +755,6 @@ class espresso(Calculator):
                 self.cinp.flush()
             self.only_init = False
             s = open(self.log,'a')
-            s.write('     python dir  : '+os.path.dirname(__file__)+'\n')
-            exedir = os.path.dirname(os.popen('which pw.x').readline())
-            s.write('     espresso dir: '+exedir+'\n')
-            s.write('     pseudo dir  : '+self.psppath+'\n')
             a = self.cout.readline()
             s.write(a)
             atom_occ = {}
@@ -959,7 +967,7 @@ class espresso(Calculator):
                     if not self.proclist:
                         self.cinp, self.cout = os.popen2(site.perProcMpiExec+' -wdir '+self.scratch+' pw.x '+self.parflags+' -in pw.inp')
                     else:
-                        self.cinp, self.cout, self.cerr = os.popen3((site.perSpecProcMpiExec % (self.mycpus,self.myncpus))+' -wdir '+self.scratch+' pw.x '+self.parflags+' -in pw.inp|tee -a '+self.log+'0|sed -u "/   total energy\\|     stopping\\|     convergence NOT/w /dev/stderr"')
+                        self.cinp, self.cout, self.cerr = os.popen3((site.perSpecProcMpiExec % (self.mycpus,self.myncpus))+' -wdir '+self.scratch+' pw.x '+self.parflags+' -in pw.inp|'+self.mypath+'/espfilter '+str(self.natoms)+' '+self.log+'0')
                 else:
                     os.system(site.perProcMpiExec+' -wdir '+self.scratch+' pw.x -in pw.inp >>'+self.log)
                     os.system("sed s/occupations.*/occupations=\\'fixed\\',/ <"+self.localtmp+"/pw.inp | sed s/ELECTRONS/ELECTRONS\\\\n\ \ startingwfc=\\'file\\',\\\\n\ \ startingpot=\\'file\\',/ | sed s/conv_thr.*/conv_thr="+num2str(self.conv_thr)+",/ | sed s/tot_magnetization.*/tot_magnetization="+num2str(self.totmag)+",/ >"+self.localtmp+"/pw2.inp")
