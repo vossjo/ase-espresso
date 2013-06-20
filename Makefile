@@ -1,5 +1,5 @@
 msg:
-	@echo run python setup.py [install-directory]
+	@echo run python setup.py [--prefix=install-directory]
 	@echo or make install to install the ase - espresso interface
 
 install:
