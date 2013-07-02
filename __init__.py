@@ -991,7 +991,13 @@ class espresso(Calculator):
             if self.opt_algorithm == 'ase3':
                 #sending 'Q' to espresso tells it to quit cleanly
                 print >>self.cinp, 'Q'
-            self.cinp.flush()
+                try:
+                    self.cinp.flush()
+                except IOError:
+                    #espresso may have already shut down, so flush may fail
+                    pass
+            else:
+                self.cinp.flush()
             s = open(self.log,'a')
             a = self.cout.readline()
             s.write(a)
