@@ -63,6 +63,7 @@ class espresso(Calculator):
                  dipole = {'status':False},
                  field = {'status':False},
                  output = {'disk_io':'default',  # how often espresso writes wavefunctions to disk
+                           'avoidio':False,  # will overwrite disk_io parameter if True
                            'removewf':True,
                            'wf_collect':False},
                  convergence = {'energy':1e-6,
@@ -420,9 +421,13 @@ class espresso(Calculator):
             if self.calcstress:
                 print >>f, '  tstress=.true.,'
             if self.output is not None:
+                if self.output.has_key('avoidio'):
+                    if self.output['avoidio']:
+                        self.output['disk_io'] = 'none'
                 if self.output.has_key('disk_io'):
                     if self.output['disk_io'] in ['high', 'low', 'none']:
                         print >>f, '  disk_io=\''+self.output['disk_io']+'\','
+
                 if self.output.has_key('wf_collect'):
                     if self.output['wf_collect']:
                         print >>f, '  wf_collect=.true.,'
@@ -1270,7 +1275,7 @@ class espresso(Calculator):
         output_format=5, iflag=3, piperead=False, parallel=True):
         if self.output.has_key('disk_io'):
             if self.output['disk_io'] == 'none':
-                print "run_ppx requires output['disk_io'] to be at least 'low'"
+                print "run_ppx requires output['disk_io'] to be at least 'low' and avoidio=False"
         self.stop()
         f = open(self.localtmp+'/'+inp, 'w')
         print >>f, '&INPUTPP\n  prefix=\'calc\',\n  outdir=\'.\','
