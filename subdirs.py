@@ -57,7 +57,7 @@ def cleanup(tmp, scratch, removewf, calc, site):
 
 def getsubmitorcurrentdir(site):
     s = site.submitdir
-    if s!='':
+    if s!=None:
         return s
     else:
         return os.getcwd()
