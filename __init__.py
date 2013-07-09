@@ -62,7 +62,7 @@ class espresso(Calculator):
                  occupations = 'smearing', # 'smearing', 'fixed', 'tetrahedra'
                  dipole = {'status':False},
                  field = {'status':False},
-                 output = {'avoidio':False,
+                 output = {'disk_io':'default',  # how often espresso writes wavefunctions to disk
                            'removewf':True,
                            'wf_collect':False},
                  convergence = {'energy':1e-6,
@@ -420,9 +420,9 @@ class espresso(Calculator):
             if self.calcstress:
                 print >>f, '  tstress=.true.,'
             if self.output is not None:
-                if self.output.has_key('avoidio'):
-                    if self.output['avoidio']:
-                        print >>f, '  disk_io=\'none\','
+                if self.output.has_key('disk_io'):
+                    if self.output['disk_io'] in ['high', 'low', 'none']:
+                        print >>f, '  disk_io=\''+self.output['disk_io']+'\','
                 if self.output.has_key('wf_collect'):
                     if self.output['wf_collect']:
                         print >>f, '  wf_collect=.true.,'
@@ -1018,26 +1018,6 @@ class espresso(Calculator):
             return os.path.join(self.sdir,filename)
 
 
-    def write_pot(self, filename='pot.xsf'):
-        file = self.topath(filename)
-        self.update(self.atoms)
-        self.stop()
-        f = open(self.localtmp+'/pp.inp', 'w')
-        print >>f, '&inputPP\n  prefix=\'calc\'\n  outdir=\'.\','
-        print >>f, '  plot_num=11,\n  filplot=\''+file+'\'\n/\n'
-        print >>f, '&plot\n  iflag=3,\n  outputformat=3\n/'
-        f.close()
-        if site.batch:
-            cdir = os.getcwd()
-            os.chdir(self.localtmp)
-            os.system(site.perHostMpiExec+' cp '+self.localtmp+'/pp.inp '+self.scratch)
-            os.system(site.perProcMpiExec+' -wdir '+self.scratch+' pp.x '+self.parflags+' -in pp.inp >>'+self.localtmp+'/pp.log')
-            os.chdir(cdir)
-        else:
-            os.system('cp '+self.localtmp+'/pp.inp '+self.scratch)
-            os.system('cd '+self.scratch+' ; '+'pp.x -in pp.inp >>'+self.localtmp+'/pp.log')
-
-
     def save_output(self, filename='calc.tgz'):
         file = self.topath(filename)
         self.update(self.atoms)
@@ -1288,6 +1268,9 @@ class espresso(Calculator):
 
     def run_ppx(self, inp, log=None, inputpp=[], plot=[],
         output_format=5, iflag=3, piperead=False, parallel=True):
+        if self.output.has_key('disk_io'):
+            if self.output['disk_io'] == 'none':
+                print "run_ppx requires output['disk_io'] to be at least 'low'"
         self.stop()
         f = open(self.localtmp+'/'+inp, 'w')
         print >>f, '&INPUTPP\n  prefix=\'calc\',\n  outdir=\'.\','
@@ -1778,7 +1761,7 @@ class espresso(Calculator):
         p.close()
         return (origin,cell,data)
 
-    def xsf_ionic_and_hartree_potential(self, xsf):
+    def xsf_sawtooth_potential(self, xsf):
         self.run_ppx('sawtooth.inp',
             inputpp=[['plot_num',12]],
             plot=[['fileout',self.topath(xsf)]],
@@ -1918,7 +1901,7 @@ class espresso(Calculator):
     def get_work_function(self, pot_filename="pot.xsf", edir=3):
         """
         Calculates the work function of a calculation by subtracting the electrostatic
-        potential of the vacuum (from averaging the output of self.write_pot in the z
+        potential of the vacuum (from averaging the output of pp.x num_plot 11 in the z
         direction by default) from the Fermi energy.
         Values used for average.x come from the espresso example for work function for a surface
         TODO: Implement some sort of tuning for these parameters?
@@ -1930,7 +1913,9 @@ class espresso(Calculator):
         self.update(self.atoms)
         self.stop()
         if not os.path.exists(file):
-            self.write_pot(pot_filename)
+            self.run_ppx('wf_pp.in', log='wf_pp.log',
+                inputpp=[('plot_num', 11), ('filplot', self.topath('pot.xsf'))], 
+                output_format=3, iflag=3, piperead=False, parallel=False)
 
         f = open(self.localtmp + '/avg.in', 'w')
         print >>f, '1'
