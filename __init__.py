@@ -57,7 +57,7 @@ class espresso(Calculator):
                  J = None,
                  U_alpha = None,
                  U_projection_type = 'atomic',
-                 tot_charge = 0.0, # +1 means 1 e missing, -1 means 1 extra e
+                 tot_charge = None, # +1 means 1 e missing, -1 means 1 extra e
                  tot_magnetization = -1, #-1 means unspecified, 'hund' means Hund's rule for each atom
                  occupations = 'smearing', # 'smearing', 'fixed', 'tetrahedra'
                  dipole = {'status':False},
@@ -383,7 +383,11 @@ class espresso(Calculator):
         #if not self.spinpol:
         #    nvalence /= 2 
         return nvalence, nel
-    
+
+    def write_charge(self, f):
+        if self.tot_charge != None:
+           print >>f, '  tot_charge='+str(self.tot_charge)+','
+
     def writeinputfile(self, filename='pw.inp', mode=None,
         overridekpts=None, overridekptshift=None, suppressforcecalc=False,
         usetetrahedra=False):
@@ -442,8 +446,7 @@ class espresso(Calculator):
         print >>f, '  nat='+str(self.natoms)+','
         self.atoms2species() #self.convertmag2species()
         print >>f, '  ntyp='+str(self.nspecies)+',' #str(len(self.msym))+','
-        if not self.tot_charge:
-            print >>f, '  tot_charge='+str(self.tot_charge)+','
+        self.write_charge(f)
         if self.calcmode!='hund':
             inimagscale = 1.0
         else:
