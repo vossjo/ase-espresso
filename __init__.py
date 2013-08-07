@@ -4,7 +4,7 @@ import os
 try:
     import espsite
 except:
-    print '*** ASE Espresso requires a site-specific espsite.py in PYTHONPATH.'
+    print '*** ase-espresso requires a site-specific espsite.py in PYTHONPATH.'
     print '*** You may use espsite.py.example in the svn checkout as a template.'
     raise ImportError
 site = espsite.config()
@@ -25,6 +25,7 @@ espresso_calculators = []
 
 class espresso(Calculator):
     def __init__(self,
+                 atoms = None,
                  pw = 350.0,
                  dw = None,
                  nbands = -10, 
@@ -37,12 +38,15 @@ class espresso(Calculator):
                  press = None, # target pressure
                  dpress = None, # convergence limit towards target pressure
                  cell_factor = None,
+                 cell_dofree = None,
                  dontcalcforces = False,
                  nosym = False,
                  noinv = False,
                  nosym_evc = False,
                  no_t_rev = False,
                  xc = 'PBE',
+                 beefensemble = False,
+                 printensemble = False,
                  psppath = None,
                  spinpol = False,
                  noncollinear = False,
@@ -58,6 +62,7 @@ class espresso(Calculator):
                  U_alpha = None,
                  U_projection_type = 'atomic',
                  tot_charge = None, # +1 means 1 e missing, -1 means 1 extra e
+                 charge = None, # overrides tot_charge (ase 3.7+ compatibility)
                  tot_magnetization = -1, #-1 means unspecified, 'hund' means Hund's rule for each atom
                  occupations = 'smearing', # 'smearing', 'fixed', 'tetrahedra'
                  dipole = {'status':False},
@@ -72,6 +77,7 @@ class espresso(Calculator):
                                 'diag':'david'},
                  startingpot = None,
                  startingwfc = None,
+                 ion_positions = None,
                  parflags = None,
                  onlycreatepwinp = None, #specify filename to only create pw input
                  single_calculator = True, #if True, only one espresso job will be running
@@ -84,7 +90,11 @@ class espresso(Calculator):
         self.pw = pw
         self.dw = dw
         self.nbands = nbands
-        self.kpts = kpts
+        if type(kpts)==float or type(kpts)==int:
+            from ase.calculators.calculator import kptdensity2monkhorstpack
+            self.kpts = kptdensity2monkhorstpack(atoms, kpts)
+        else:
+            self.kpts = kpts
         self.kptshift = kptshift
         self.calcmode = mode
         self.opt_algorithm = opt_algorithm
@@ -93,19 +103,29 @@ class espresso(Calculator):
         self.press = press
         self.dpress = dpress
         self.cell_factor = cell_factor
+        self.cell_dofree = cell_dofree
         self.dontcalcforces = dontcalcforces
         self.nosym = nosym
         self.noinv = noinv
         self.nosym_evc = nosym_evc
         self.no_t_rev = no_t_rev
         self.xc = xc
-        self.smearing = smearing
-        self.sigma = sigma
+        self.beefensemble = beefensemble
+        self.printensemble = printensemble
+        if type(smearing)==str:
+            self.smearing = smearing
+            self.sigma = sigma
+        else:
+            self.smearing = smearing[0]
+            self.sigma = smearing[1]
         self.spinpol = spinpol
         self.noncollinear = noncollinear
         self.spinorbit = spinorbit
         self.fix_magmom = fix_magmom
-        self.tot_charge = tot_charge
+        if charge is None:
+            self.tot_charge = tot_charge
+        else:
+            self.tot_charge = charge
         self.tot_magnetization = tot_magnetization
         self.occupations = occupations
         self.outdir = outdir
@@ -117,6 +137,7 @@ class espresso(Calculator):
         self.convergence = convergence
         self.startingpot = startingpot
         self.startingwfc = startingwfc
+        self.ion_positions = ion_positions
         self.verbose = verbose
         self.U = U
         self.J = J
@@ -159,6 +180,9 @@ class espresso(Calculator):
             for i in range(i1,i1+self.myncpus):
                 print >>f, procs[i]
             f.close()
+        
+        if atoms is not None:
+            atoms.set_calculator(self)
 
 
     def input_update(self):
@@ -193,6 +217,11 @@ class espresso(Calculator):
                 self.conv_thr = self.convergence['energy']/rydberg
             else:
                 self.conv_thr = 1e-6/rydberg
+
+        if self.beefensemble:
+            if self.xc.upper().find('BEEF')<0:
+                raise KeyError("ensemble-energies only work with xc=BEEF or variants of it!")
+
         self.started = False
         self.got_energy = False
 
@@ -236,6 +265,8 @@ class espresso(Calculator):
                 self.startingpot = value
             if key == 'startingwfc':
                 self.startingwfc = value
+            if key == 'ion_positions':
+                self.ion_positions = value
             if key == 'U_alpha':
                 self.U_alpha = value
             if key == 'U':
@@ -295,7 +326,10 @@ class espresso(Calculator):
             U_alphalist = []
             for i, atom in enumerate(self.atoms):
                 if atom.symbol == atype:
-                    maglist.append(magmoms[i])
+                    try:
+                        maglist.append(magmoms[i])
+                    except:
+                        maglist.append(0.)
                     masslist.append(atom.mass)
                     if self.U is not None:
                         if i in self.U:
@@ -384,13 +418,9 @@ class espresso(Calculator):
         #    nvalence /= 2 
         return nvalence, nel
 
-    def write_charge(self, f):
-        if self.tot_charge != None:
-           print >>f, '  tot_charge='+str(self.tot_charge)+','
-
     def writeinputfile(self, filename='pw.inp', mode=None,
-        overridekpts=None, overridekptshift=None, suppressforcecalc=False,
-        usetetrahedra=False):
+        overridekpts=None, overridekptshift=None, overridenbands=None,
+        suppressforcecalc=False, usetetrahedra=False):
         if self.atoms is None:
             raise ValueError, 'no atoms defined'
         if self.cancalc:
@@ -446,7 +476,8 @@ class espresso(Calculator):
         print >>f, '  nat='+str(self.natoms)+','
         self.atoms2species() #self.convertmag2species()
         print >>f, '  ntyp='+str(self.nspecies)+',' #str(len(self.msym))+','
-        self.write_charge(f)
+        if self.tot_charge is not None:
+            print >>f, '  tot_charge='+num2str(self.totcharge)+','
         if self.calcmode!='hund':
             inimagscale = 1.0
         else:
@@ -464,13 +495,24 @@ class espresso(Calculator):
             print >>f, '  tot_magnetization='+num2str(self.totmag*inimagscale)+','
         print >>f, '  ecutwfc='+num2str(self.pw/rydberg)+','
         print >>f, '  ecutrho='+num2str(self.dw/rydberg)+','
+        #temporarily (and optionally) change number of bands for nscf calc.
+        if overridenbands is not None:
+            if self.nbands is None:
+                nbandssave = None
+            else:
+                nbandssave = self.nbands
+            self.nbands = overridenbands
         if self.nbands is not None:
+            #set number of bands
             if self.nbands>0:
                 print >>f, '  nbnd='+str(int(self.nbands))+','
             else:
+            #if self.nbands is negative create -self.nbands extra bands
                 if self.nvalence == None:
                      self.nvalence, self.nel =  self.get_nvalence()
                 print >>f, '  nbnd='+str(int(np.sum(self.nvalence)-self.nbands))+','
+        if overridenbands is not None:
+            self.nbands = nbandssave
         if usetetrahedra:
             print >>f, '  occupations=\'tetrahedra\','
         else:
@@ -509,6 +551,12 @@ class espresso(Calculator):
                 print >>f, '  starting_magnetization(%d)=%s,' % (spcount,num2str(float(mag)))
                 spcount += 1
         print >>f, '  input_dft=\''+self.xc+'\','
+        if self.beefensemble:
+            print >>f, '  ensemble_energies=.true,'
+            if self.printensemble:
+                print >>f, '  print_ensemble_energies=.true.,'
+            else:
+                print >>f, '  print_ensemble_energies=.false.,'
         edir = 3
         if dipfield:
             try:
@@ -635,6 +683,10 @@ class espresso(Calculator):
                 print >>f, '/\n&IONS\n  ion_dynamics=\''+self.opt_algorithm+'\','
             else:
                 print >>f, '/\n&IONS\n  ion_dynamics=\'bfgs\','
+            if self.ion_positions is not None:
+                print >>f, '  ion_positions=\''+self.ion_positions+'\','
+        elif self.ion_positions is not None:
+            print >>f, '/\n&IONS\n  ion_positions=\''+self.ion_positions+'\','
 
         ### &CELL ###
         if self.cell_dynamics is not None:
@@ -645,6 +697,8 @@ class espresso(Calculator):
                 print >>f, '  press_conv_thr='+num2str(self.dpress)+','
             if self.cell_factor is not None:
                 print >>f, '  cell_factor='+num2str(self.cell_factor)+','
+            if self.cell_dofree is not None:
+                print >>f, '  cell_dofree=\''+self.cell_dofree+'\','
 
         ### CELL_PARAMETERS
         print >>f, '/\nCELL_PARAMETERS'
@@ -1041,6 +1095,21 @@ class espresso(Calculator):
         os.system('tar xzf '+filename+' --directory='+self.scratch)
 
 
+    def save_chg(self, filename='chg.tgz'):
+        file = self.topath(filename)
+        self.update(self.atoms)
+        self.stop()
+        
+        os.system('tar czf '+filename+' --directory='+self.scratch+' calc.save/charge-density.dat')
+
+
+    def load_chg(self, filename='chg.tgz'):
+        self.stop()
+        file = self.topath(filename)
+
+        os.system('tar xzf '+filename+' --directory='+self.scratch)
+
+
     def save_wf(self, filename='wf.tgz'):
         file = self.topath(filename)
         self.update(self.atoms)
@@ -1133,6 +1202,28 @@ class espresso(Calculator):
         
         return atoms
 
+    def get_potential_energy(self, atoms=None, force_consistent=False):
+        self.update(self.atoms)
+        if force_consistent:
+            return self.energy_free
+        else:
+            return self.energy_zero
+
+    def get_nonselfconsistent_energies(self, type='beefvdw'):
+        #assert self.xc is 'BEEF'
+        self.stop()
+        p = os.popen('grep -32 "BEEF xc energy contributions" '+self.log+' | tail -32','r')
+        s = p.readlines()
+        p.close()
+        xc = np.array([])
+        for i, l in enumerate(s):
+            l_ = float(l.split(":")[-1]) * rydberg
+            xc = np.append(xc, l_)
+        assert len(xc) == 32
+        return xc
+
+    def get_xc_functional(self):
+        return self.xc
 
     def get_final_stress(self):
         """
@@ -1194,6 +1285,7 @@ class espresso(Calculator):
             cell_dynamics='bfgs', # {'none', 'sd', 'damp-pr', 'damp-w', 'bfgs'}
             opt_algorithm='bfgs', # {'bfgs', 'damp'}
             cell_factor=1.2,
+            cell_dofree=None,
             fmax=None,
             press=None,
             dpress=None
@@ -1203,9 +1295,11 @@ class espresso(Calculator):
         oldalgo = self.opt_algorithm
         oldcell = self.cell_dynamics
         oldfactor = self.cell_factor
+        oldfree = self.cell_dofree
         self.cell_dynamics=cell_dynamics
         self.opt_algorithm=opt_algorithm
         self.cell_factor=cell_factor
+        self.cell_dofree = cell_dofree
         oldfmax = self.fmax
         oldpress = self.press
         olddpress = self.dpress
@@ -1223,6 +1317,7 @@ class espresso(Calculator):
         self.opt_algorithm = oldalgo
         self.cell_dynamics = oldcell
         self.cell_factor = oldfactor
+        self.cell_dofree = oldfree
         self.fmax = oldfmax
         self.press = oldpress
         self.dpress = olddpress
@@ -1330,6 +1425,7 @@ class espresso(Calculator):
         slab = False,
         kpts = None,
         kptshift = None,
+        nbands = None,
         ngauss = None,
         sigma = None,
         nscf_fermilevel=False,
@@ -1341,7 +1437,8 @@ class espresso(Calculator):
         if nscf:
             self.writeinputfile(filename='pwnscf.inp',
                 mode='nscf', usetetrahedra=tetrahedra, overridekpts=kpts,
-                overridekptshift=kptshift, suppressforcecalc=True)
+                overridekptshift=kptshift, overridenbands=nbands,
+                suppressforcecalc=True)
             self.run_espressox('pw.x', 'pwnscf.inp', 'pwnscf.log')
             if nscf_fermilevel:
                 p = os.popen('grep Fermi '+self.localtmp+'/pwnscf.log|tail -1', 'r')
