@@ -33,6 +33,7 @@ class espresso(Calculator):
                  kptshift = (0,0,0),
                  mode = 'ase3',
                  opt_algorithm = 'ase3',
+                 constr_tol = None,
                  fmax = 0.05,
                  cell_dynamics = None,
                  press = None, # target pressure
@@ -83,7 +84,7 @@ class espresso(Calculator):
                  single_calculator = True, #if True, only one espresso job will be running
                  procrange = None, #let this espresso calculator run only on a subset of the requested cpus
                  numcalcs = None,  #used / set by multiespresso class
-		 verbose = 'low'):
+                 verbose = 'low'):
         
         self.outdir= outdir
         self.onlycreatepwinp = onlycreatepwinp 
@@ -98,6 +99,7 @@ class espresso(Calculator):
         self.kptshift = kptshift
         self.calcmode = mode
         self.opt_algorithm = opt_algorithm
+        self.constr_tol = constr_tol
         self.fmax = fmax
         self.cell_dynamics = cell_dynamics
         self.press = press
@@ -147,7 +149,7 @@ class espresso(Calculator):
             self.parflags = ''
         else:
             self.parflags = parflags
-	self.single_calculator = single_calculator
+        self.single_calculator = single_calculator
         self.txt = txt
 
         self.mypath = os.path.abspath(os.path.dirname(__file__))
@@ -161,7 +163,8 @@ class espresso(Calculator):
 
         # Variables that cannot be set by inputs
         self.nvalence=None
-        self.nel = None 
+        self.nel = None
+        self.fermi_input = False 
         # Auto create variables from input
         self.input_update() 
 
@@ -505,12 +508,13 @@ class espresso(Calculator):
         if self.nbands is not None:
             #set number of bands
             if self.nbands>0:
-                print >>f, '  nbnd='+str(int(self.nbands))+','
+                self.nbnd = int(self.nbands)
             else:
             #if self.nbands is negative create -self.nbands extra bands
                 if self.nvalence == None:
                      self.nvalence, self.nel =  self.get_nvalence()
-                print >>f, '  nbnd='+str(int(np.sum(self.nvalence)-self.nbands))+','
+                self.nbnd = int(np.sum(self.nvalence)-self.nbands)
+            print >>f, '  nbnd='+str(self.nbnd)+','
         if overridenbands is not None:
             self.nbands = nbandssave
         if usetetrahedra:
@@ -678,8 +682,14 @@ class espresso(Calculator):
             print >>f, '  startingwfc=\''+self.startingwfc+'\','
 
         ### &IONS ###
+        simpleconstr,otherconstr = convert_constraints(self.atoms)
+        
+        self.optdamp = (self.opt_algorithm.upper()=='DAMP')
         if self.opt_algorithm is not None and self.calcmode not in ('scf','hund'):
-            if self.cancalc:
+            if len(otherconstr)!=0:
+                print >>f, '/\n&IONS\n  ion_dynamics=\'damp\','
+                self.optdamp = True
+            elif self.cancalc:
                 print >>f, '/\n&IONS\n  ion_dynamics=\''+self.opt_algorithm+'\','
             else:
                 print >>f, '/\n&IONS\n  ion_dynamics=\'bfgs\','
@@ -711,18 +721,44 @@ class espresso(Calculator):
             print >>f, species, self.specdict[el]['mass'][0], el+'.UPF'
         
         print >>f, 'ATOMIC_POSITIONS {crystal}'
-        for species, mass, magmom, pos in self.specprops:
-            print >>f, '%-4s %21.15fd0 %21.15fd0 %21.15fd0' % (species,pos[0],pos[1],pos[2])
+        if len(simpleconstr)==0:
+            for species, mass, magmom, pos in self.specprops:
+                print >>f, '%-4s %21.15fd0 %21.15fd0 %21.15fd0' % (species,pos[0],pos[1],pos[2])
+        else:
+            for i, (species, mass, magmom, pos) in enumerate(self.specprops):
+                print >>f, '%-4s %21.15fd0 %21.15fd0 %21.15fd0   %d  %d  %d' % (species,pos[0],pos[1],pos[2],simpleconstr[i][0],simpleconstr[i][1],simpleconstr[i][2])
+
+        if len(otherconstr)!=0:
+            print >>f, 'CONSTRAINTS'
+            if self.constr_tol is None:
+                print >>f, len(otherconstr)
+            else:
+                print >>f, len(otherconstr), num2str(self.constr_tol)
+            for x in otherconstr:
+                print >>f, x
         
-        print >>f, 'K_POINTS automatic'
         if overridekpts is None:
-            print >>f, self.kpts[0], self.kpts[1],self.kpts[2],
+            kp = self.kpts
         else:
-            print >>f, overridekpts[0], overridekpts[1],overridekpts[2],
-        if overridekptshift is None:
-            print >>f, self.kptshift[0],self.kptshift[1],self.kptshift[2]
+            kp = overridekpts
+        x = np.shape(kp)
+        if len(x)==1:
+            print >>f, 'K_POINTS automatic'
+            print >>f, kp[0], kp[1], kp[2],
+            if overridekptshift is None:
+                print >>f, self.kptshift[0],self.kptshift[1],self.kptshift[2]
+            else:
+                print >>f, overridekptshift[0],overridekptshift[1],overridekptshift[2]
         else:
-            print >>f, overridekptshift[0],overridekptshift[1],overridekptshift[2]
+            print >>f, 'K_POINTS crystal'
+            print >>f, x[0]
+            w = 1./x[0]
+            for k in kp:
+                if len(k)==3:
+                    print >>f, '%24.15e %24.15e %24.15e %24.15e' % (k[0],k[1],k[2],w)
+                else:
+                    print >>f, '%24.15e %24.15e %24.15e %24.15e' % (k[0],k[1],k[2],k[3])
+                
         ### closing PWscf input file ###
         f.close()
         if self.verbose == 'high':
@@ -869,12 +905,12 @@ class espresso(Calculator):
                 self.checkerror()
                 #if checkerror shouldn't find an error here,
                 #throw this generic error
-                raise RuntimeError, 'SCF calculation didn\'t converge'
+                raise RuntimeError, 'SCF calculation failed'
             self.atom_occ = atom_occ
             if self.calcmode in ('ase3','relax','scf','vc-relax','vc-md','md','hund'):
                 self.energy_free = float(a.split()[-2])*rydberg
                 # get S*T correction (there is none for Marzari-Vanderbilt=Cold smearing)
-                if self.occupations=='smearing' and self.calcmode!='hund' and self.smearing[0].upper()!='M' and self.smearing[0].upper()!='C':
+                if self.occupations=='smearing' and self.calcmode!='hund' and self.smearing[0].upper()!='M' and self.smearing[0].upper()!='C' and not self.optdamp:
                     a = self.cout.readline()
                     s.write(a)
                     while a[:13]!='     smearing':
@@ -883,7 +919,7 @@ class espresso(Calculator):
                     self.ST = -float(a.split()[-2])*rydberg
                     self.energy_zero = self.energy_free + 0.5*self.ST
                 else:
-                    self.energy_zero = self.energy_free    
+                    self.energy_zero = self.energy_free
             else:
                 self.energy_free = None
                 self.energy_zero = None
@@ -947,7 +983,7 @@ class espresso(Calculator):
                     f.readline()
                 self.energy_free = float(f.readline().split()[-2])*rydberg
                 # get S*T correction (there is none for Marzari-Vanderbilt=Cold smearing)
-                if self.occupations=='smearing' and self.calcmode!='hund' and self.smearing[0].upper()!='M' and self.smearing[0].upper()!='C':
+                if self.occupations=='smearing' and self.calcmode!='hund' and self.smearing[0].upper()!='M' and self.smearing[0].upper()!='C' and not self.optdamp:
                     a = f.readline()
                     while a[:13]!='     smearing':
                         a = f.readline()
@@ -1017,10 +1053,10 @@ class espresso(Calculator):
 
     def start(self):
         if not self.started:
-	    if self.single_calculator:
-		while len(espresso_calculators)>0:
-		    espresso_calculators.pop().stop()
-		espresso_calculators.append(self)
+            if self.single_calculator:
+                while len(espresso_calculators)>0:
+                    espresso_calculators.pop().stop()
+                espresso_calculators.append(self)
             if site.batch:
                 cdir = os.getcwd()
                 os.chdir(self.localtmp)
@@ -1100,7 +1136,7 @@ class espresso(Calculator):
         self.update(self.atoms)
         self.stop()
         
-        os.system('tar czf '+filename+' --directory='+self.scratch+' calc.save/charge-density.dat')
+        os.system('tar czf '+filename+' --directory='+self.scratch+' calc.save/charge-density.dat `cd '+self.scratch+';find calc.save -name "spin-polarization.*";find calc.save -name "magnetization.*"`')
 
 
     def load_chg(self, filename='chg.tgz'):
@@ -1123,6 +1159,28 @@ class espresso(Calculator):
         file = self.topath(filename)
 
         os.system('tar xzf '+filename+' --directory='+self.scratch)
+
+
+    def save_flev_chg(self, filename='chg.tgz'):
+        file = self.topath(filename)
+        self.update(self.atoms)
+        
+        ef = self.get_fermi_level()
+        f = open(self.scratch+'/calc.save/fermilevel.txt', 'w')
+        print >>f, '%.15e\n#Fermi level in eV' % ef
+        f.close()        
+        os.system('tar czf '+filename+' --directory='+self.scratch+' calc.save/charge-density.dat `cd '+self.scratch+';find calc.save -name "spin-polarization.*";find calc.save -name "magnetization.*"` calc.save/fermilevel.txt')
+
+
+    def load_flev_chg(self, filename='efchg.tgz'):
+        self.stop()
+        file = self.topath(filename)
+
+        os.system('tar xzf '+filename+' --directory='+self.scratch)
+        self.fermi_input = True
+        f = open(self.scratch+'/calc.save/fermilevel.txt', 'r')
+        self.inputfermilevel = float(f.readline())
+        f.close()
 
 
     def get_final_structure(self):
@@ -1183,7 +1241,7 @@ class espresso(Calculator):
             if a[0]=='A':
                 coord = a.split('(')[-1]
                 for i in range(natoms):
-                    pos[i][:] = s.readline().split()[1:]
+                    pos[i][:] = s.readline().split()[1:4]
             else:
                 for i in range(3):
                     cell[i][:] = s.readline().split()
@@ -1406,6 +1464,8 @@ class espresso(Calculator):
 
     
     def get_fermi_level(self):
+        if self.fermi_input:
+            return self.inputfermilevel
         self.stop()
         try:
             p = os.popen('grep Fermi '+self.log+'|tail -1', 'r')
@@ -1429,12 +1489,16 @@ class espresso(Calculator):
         ngauss = None,
         sigma = None,
         nscf_fermilevel=False,
-        add_higher_channels=False):
+        add_higher_channels=False,
+        get_overlap_integrals=False):
 
         efermi = self.get_fermi_level()
 
         # run a nscf calculation with e.g. tetrahedra or more k-points etc.
         if nscf:
+            if not hasattr(self, 'natoms'):
+                self.atoms2species()
+                self.natoms = len(self.atoms)
             self.writeinputfile(filename='pwnscf.inp',
                 mode='nscf', usetetrahedra=tetrahedra, overridekpts=kpts,
                 overridekptshift=kptshift, overridenbands=nbands,
@@ -1477,7 +1541,7 @@ class espresso(Calculator):
         self.dos_total = dos[:,1]
         npoints = len(self.dos_energies)
         
-        channels = {'s':0, 'p':1, 'd':2, 'f': 3}
+        channels = {'s':0, 'p':1, 'd':2, 'f':3}
         # read in projections onto atomic orbitals
         self.pdos = [{} for i in range(self.natoms)]
         p = os.popen('ls '+self.scratch+'/calc.pdos_atm*')
@@ -1489,9 +1553,9 @@ class espresso(Calculator):
             pdosinp = np.genfromtxt(inpfile)
             spl = inpfile.split('#')
             iatom = int(spl[1].split('(')[0])-1
-            channel = spl[2].split('(')[1].rstrip(')')
+            channel = spl[2].split('(')[1].rstrip(')').replace('_j',',j=')
             #ncomponents = 2*l+1 +1  (latter for m summed up)
-            ncomponents = (2*channels[channel]+2) * nspin
+            ncomponents = (2*channels[channel[0]]+2) * nspin
             if not self.pdos[iatom].has_key(channel):
                 self.pdos[iatom][channel] = np.zeros((ncomponents,npoints), np.float)
                 first = True
@@ -1501,7 +1565,199 @@ class espresso(Calculator):
                 for j in range(ncomponents):
                     self.pdos[iatom][channel][j] += pdosinp[:,(j+1)]
         
-        return self.dos_energies, self.dos_total, self.pdos
+        if get_overlap_integrals:
+            return self.dos_energies, self.dos_total, self.pdos, self.__get_atomic_projections__()
+        else:
+            return self.dos_energies, self.dos_total, self.pdos
+
+
+    def calc_bandstructure(self,
+        kptpath,
+        nbands = None,
+        atomic_projections = False):
+
+        efermi = self.get_fermi_level()
+
+        # run a nscf calculation
+        if not hasattr(self, 'natoms'):
+            self.atoms2species()
+            self.natoms = len(self.atoms)
+        oldnoinv = self.noinv
+        oldnosym = self.nosym
+        self.noinv = True
+        self.nosym = True
+        self.writeinputfile(filename='pwnscf.inp',
+            mode='nscf', overridekpts=kptpath,
+            overridenbands=nbands, suppressforcecalc=True)
+        self.noinv = oldnoinv 
+        self.nosym = oldnosym
+        self.run_espressox('pw.x', 'pwnscf.inp', 'pwnscf.log')
+
+        energies = self.get_eigenvalues(efermi=efermi)
+        
+        if not atomic_projections:
+            return energies
+        else:
+            #run pdos calculation with (tiny) E-range
+            #to trigger calculation of atomic_proj.xml
+
+            # create input for projwfc.x
+            f = open(self.localtmp+'/pdos.inp', 'w')
+            print >>f, '&PROJWFC\n  prefix=\'calc\',\n  outdir=\'.\','
+            print >>f, '  filpdos = \'projtmp\','
+            print >>f, '  Emin = '+num2str(-0.3+efermi)+','
+            print >>f, '  Emax = '+num2str(-0.2+efermi)+','
+            print >>f, '  DeltaE = 0.1d0,'
+            print >>f, '/'
+            f.close()
+            # run projwfc.x
+            self.run_espressox('projwfc.x', 'pdos.inp', 'pdos.log')
+            #remove unneeded pdos files containing only a tiny E-range of two points
+            os.system('rm -f '+self.scratch+'/projtmp*')
+            
+            return energies, self.__get_atomic_projections__()
+    
+    
+    def __get_atomic_projections__(self):
+        f = open(self.scratch+'/calc.save/atomic_proj.xml', 'r')
+        p = os.popen('grep -n Giannozzi '+self.localtmp+'/pdos.log|tail -1','r')
+        n = p.readline().split()[0].strip(':').strip()
+        p.close()
+        p = os.popen('tail -n +'+n+' '+self.localtmp+'/pdos.log|grep "state #"', 'r')
+        #identify states from projwfc.x's stdout
+        states = []
+        for x in p.readlines():
+            y = x.split('atom')[1]
+            iatom = int(y.split()[0])-1
+            z = y.replace(')\n','').split('=')
+            if y.find('m_j')<0:
+                l = int(z[1].replace('m',''))
+                m = int(z[2])
+                states.append([iatom,l,m])
+            else:
+                j = float(z[1].replace('l',''))
+                l = int(z[2].replace('m_j',''))
+                mj = float(z[3])
+                states.append([iatom,j,l,mj])
+        p.close()
+        
+        #read in projections from atomic_proj.xml
+        a = f.readline()
+        while a.find('<NUMBER_OF_B')<0:
+            a = f.readline()
+        nbnd = int(f.readline().strip())
+        a = f.readline()
+        while a.find('<NUMBER_OF_K')<0:
+            a = f.readline()
+        nkp = int(f.readline().strip())
+        a = f.readline()
+        while a.find('<NUMBER_OF_S')<0:
+            a = f.readline()
+        spinpol = int(f.readline().strip())==2
+        
+        if spinpol:
+            proj1 = []
+            proj2 = []
+            proj = proj1
+        else:
+            proj = []
+        
+        while a.find('<ATM')<0 and a!='':
+            a = f.readline()
+        if a=='':
+            raise RuntimeError, 'no projections found'
+
+        while True:
+            while a.find('<ATM')<0 and a!='':
+                if spinpol and a.find('<SP')>=0:
+                    if a.find('N.1')>0:
+                        proj = proj1
+                    else:
+                        proj = proj2
+                a = f.readline()
+            if a=='':
+                break
+            pr = np.empty(nbnd, np.complex)
+            for i in range(nbnd):
+                b = f.readline().split(',')
+                pr[i] = float(b[0])+1j*float(b[1])
+            proj.append(pr)
+            a = f.readline()
+        
+        f.close()
+        
+        if spinpol:
+            projections = np.array([proj1,proj2])
+            return states, np.reshape(projections, (2,nkp,len(proj1)/nkp,nbnd))
+        else:
+            projections = np.array(proj)
+            return states, np.reshape(projections, (nkp,len(proj)/nkp,nbnd))
+
+
+    def get_eigenvalues(self, kpt=None, spin=None, efermi=None):
+        self.stop()
+        
+        if self.spinpol:
+            p = os.popen("grep eigenval1.xml "+self.scratch+"/calc.save/data-file.xml|tr '\"' ' '|awk '{print $(NF-1)}'", 'r')
+            kptdirs1 = [x.strip() for x in p.readlines()]
+            p.close()
+            kptdirs1.sort()
+            p = os.popen("grep eigenval2.xml "+self.scratch+"/calc.save/data-file.xml|tr '\"' ' '|awk '{print $(NF-1)}'", 'r')
+            kptdirs1 = [x.strip() for x in p.readlines()]
+            p.close()
+            kptdirs2.sort()
+            kptdirs = kptdirs1+kptdirs2
+        else:
+            p = os.popen("grep eigenval.xml "+self.scratch+"/calc.save/data-file.xml|tr '\"' ' '|awk '{print $(NF-1)}'", 'r')
+            kptdirs = [x.strip() for x in p.readlines()]
+            p.close()
+            kptdirs.sort()
+        
+        nkp2 = len(kptdirs)/2
+        if kpt is None: #get eigenvalues at all k-points
+            if self.spinpol:
+                if spin=='up' or spin==0:
+                    kp = kptdirs[:nkp2]
+                if spin=='down' or spin==1:
+                    kp = kptdirs[nkp2:]
+                else:
+                    kp = kptdirs
+            else:
+                kp = kptdirs
+        else:           #get eigenvalues at specific k-point
+            if self.spinpol:
+                if spin=='up' or spin==0:
+                    kp = [kptdirs[kpt]]
+                if spin=='down' or spin==1:
+                    kp = [kptdirs[kpt+nkp2]]
+                else:
+                    kp = [kptdirs[kpt],kptdirs[kpt+nkp]]
+            else:
+                kp = [kptdirs[kpt]]
+        
+        if efermi is None:
+            ef = 0.
+        else:
+            ef = efermi
+        
+        eig = []
+        for k in kp:
+            f = open(self.scratch+'/calc.save/'+k, 'r')
+            a = f.readline()
+            while a.upper().find('<EIG')<0:
+                a = f.readline()
+            nbnd = int(a.split('"')[-2])
+            eig.append(hartree*np.fromfile(f, dtype=float, count=nbnd, sep=' ') - ef)
+            f.close()
+        
+        spinall = spin not in ('up','down',0,1)
+        if kpt is not None and spinall:
+            return np.array(eig[0])
+        elif kpt is None and spinall and self.spinpol:
+            return np.reshape(np.array(eig), (2,nkp2))
+        else:
+            return np.array(eig)
+            
 
 
     def read_3d_grid(self, stream, log):

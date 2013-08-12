@@ -116,7 +116,7 @@ while a!='':
     if a[0]=='A':
         coord = a.split('(')[-1]
         for i in range(natoms):
-            pos[i][:] = s.readline().split()[1:]
+            pos[i][:] = s.readline().split()[1:4]
 
         if coord=='alat)':
             atoms.set_positions(pos*alat)
