@@ -480,7 +480,7 @@ class espresso(Calculator):
         self.atoms2species() #self.convertmag2species()
         print >>f, '  ntyp='+str(self.nspecies)+',' #str(len(self.msym))+','
         if self.tot_charge is not None:
-            print >>f, '  tot_charge='+num2str(self.totcharge)+','
+            print >>f, '  tot_charge='+num2str(self.tot_charge)+','
         if self.calcmode!='hund':
             inimagscale = 1.0
         else:
@@ -556,7 +556,7 @@ class espresso(Calculator):
                 spcount += 1
         print >>f, '  input_dft=\''+self.xc+'\','
         if self.beefensemble:
-            print >>f, '  ensemble_energies=.true,'
+            print >>f, '  ensemble_energies=.true.,'
             if self.printensemble:
                 print >>f, '  print_ensemble_energies=.true.,'
             else:
