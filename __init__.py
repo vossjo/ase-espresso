@@ -3,9 +3,9 @@ import os
 
 try:
     import espsite
-except:
+except ImportError:
     print '*** ase-espresso requires a site-specific espsite.py in PYTHONPATH.'
-    print '*** You may use espsite.py.example in the svn checkout as a template.'
+    print '*** You may use the espsite.py.example.* in the svn checkout as templates.'
     raise ImportError
 site = espsite.config()
 
@@ -71,6 +71,7 @@ class espresso(Calculator):
                  output = {'disk_io':'default',  # how often espresso writes wavefunctions to disk
                            'avoidio':False,  # will overwrite disk_io parameter if True
                            'removewf':True,
+                           'removesave':False,
                            'wf_collect':False},
                  convergence = {'energy':1e-6,
                                 'mixing':0.7,
@@ -238,11 +239,19 @@ class espresso(Calculator):
             else:
                 self.log = self.txt
             self.scratch = mkscratch(self.localtmp, site)
-            if self.output is not None and self.output.has_key('removewf'):
-                removewf = self.output['removewf']
+            if self.output is not None:
+                if self.output.has_key('removewf'):
+                    removewf = self.output['removewf']
+                else:
+                    removewf = True
+                if self.output.has_key('removesave'):
+                    removesave = self.output['removesave']
+                else:
+                    removesave = False
             else:
                 removewf = True
-            atexit.register(cleanup, self.localtmp, self.scratch, removewf, self, site)
+                removesave = False
+            atexit.register(cleanup, self.localtmp, self.scratch, removewf, removesave, self, site)
             self.cancalc = True
         else:
             self.pwinp = self.onlycreatepwinp
@@ -473,6 +482,11 @@ class espresso(Calculator):
             # ionic steps and only consider fmax as in ase
             print >>f, '  etot_conv_thr=1d0,' 
             print >>f, '  forc_conv_thr='+num2str(self.fmax/rydberg_over_bohr)+','
+
+        #turn on fifo communication if espsite.py is set up that way
+        if hasattr(site, 'fifo'):
+            if site.fifo:
+                print >>f, '  ase_fifo=.true.,'
 
         ### &SYSTEM ###
         print >>f, '/\n&SYSTEM\n  ibrav=0,\n  celldm(1)=1.8897261245650618d0,'
@@ -1063,14 +1077,14 @@ class espresso(Calculator):
                 os.system(site.perHostMpiExec+' cp '+self.localtmp+'/pw.inp '+self.scratch)
                 if self.calcmode!='hund':
                     if not self.proclist:
-                        self.cinp, self.cout = os.popen2(site.perProcMpiExec+' -wdir '+self.scratch+' pw.x '+self.parflags+' -in pw.inp')
+                        self.cinp, self.cout = site.do_perProcMpiExec(self.scratch,'pw.x '+self.parflags+' -in pw.inp')
                     else:
-                        self.cinp, self.cout, self.cerr = os.popen3((site.perSpecProcMpiExec % (self.mycpus,self.myncpus))+' -wdir '+self.scratch+' pw.x '+self.parflags+' -in pw.inp|'+self.mypath+'/espfilter '+str(self.natoms)+' '+self.log+'0')
+                        self.cinp, self.cout, self.cerr = site.do_perSpecProcMpiExec(self.mycpus,self.myncpus,self.scratch,'pw.x '+self.parflags+' -in pw.inp|'+self.mypath+'/espfilter '+str(self.natoms)+' '+self.log+'0')
                 else:
-                    os.system(site.perProcMpiExec+' -wdir '+self.scratch+' pw.x -in pw.inp >>'+self.log)
+                    site.runonly_perProcMpiExec(self.scratch,' pw.x -in pw.inp >>'+self.log)
                     os.system("sed s/occupations.*/occupations=\\'fixed\\',/ <"+self.localtmp+"/pw.inp | sed s/ELECTRONS/ELECTRONS\\\\n\ \ startingwfc=\\'file\\',\\\\n\ \ startingpot=\\'file\\',/ | sed s/conv_thr.*/conv_thr="+num2str(self.conv_thr)+",/ | sed s/tot_magnetization.*/tot_magnetization="+num2str(self.totmag)+",/ >"+self.localtmp+"/pw2.inp")
                     os.system(site.perHostMpiExec+' cp '+self.localtmp+'/pw2.inp '+self.scratch)
-                    self.cinp, self.cout = os.popen2(site.perProcMpiExec+' -wdir '+self.scratch+' pw.x '+self.parflags+' -in pw2.inp')
+                    self.cinp, self.cout = site.do_perProcMpiExec(self.scratch,'pw.x '+self.parflags+' -in pw2.inp')
                 os.chdir(cdir)
             else:
                 os.system('cp '+self.localtmp+'/pw.inp '+self.scratch)

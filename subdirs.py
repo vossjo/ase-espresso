@@ -38,7 +38,7 @@ def mkscratch(localtmp, site):
         os.chdir(cdir)
     return tdir
 
-def cleanup(tmp, scratch, removewf, calc, site):
+def cleanup(tmp, scratch, removewf, removesave, calc, site):
     try:
         calc.stop()
     except:
@@ -49,7 +49,8 @@ def cleanup(tmp, scratch, removewf, calc, site):
         pernodeexec = ''
     if removewf:
         os.system('rm -r '+scratch+'/*.wfc* 2>/dev/null')
-    os.system('cp -r '+scratch+' '+tmp)
+    if not removesave:
+        os.system('cp -r '+scratch+' '+tmp)
     cdir = os.getcwd()
     os.chdir(tmp)
     os.system(pernodeexec + ' rm -r '+scratch+' 2>/dev/null')

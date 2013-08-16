@@ -31,11 +31,21 @@ class config:
                 rsh_agent='plm_rsh_agent'
         
             self.perHostMpiExec = 'mpiexec --mca '+rsh_agent+' /afs/slac.stanford.edu/package/lsf/bin.slac/gmmpirun_lsgrun.sh -host '+','.join(nodes)+' -np '+str(nnodes)
-            self.perProcMpiExec = 'pam -g /afs/slac/g/suncat/bin/suncat-tsmpirun -x LD_LIBRARY_PATH'
-            self.perSpecProcMpiExec = 'mpiexec --mca '+rsh_agent+' /afs/slac.stanford.edu/package/lsf/bin.slac/gmmpirun_lsgrun.sh -machinefile %s -np %d'
+            self.perProcMpiExec = 'pam -g /afs/slac/g/suncat/bin/suncat-tsmpirun -x LD_LIBRARY_PATH -wdir %s %s'
+            self.perSpecProcMpiExec = 'mpiexec --mca '+rsh_agent+' /afs/slac.stanford.edu/package/lsf/bin.slac/gmmpirun_lsgrun.sh -machinefile %s -np %d -wdir %s %s'
             # hack for suncat to make sure RHEL5 nfs disks are automounted
             # must be done before changing directories, otherwise mpirun
             # appears to do "getpwd" and sends the "/a" form of the name
             # to the slave nodes - cpo
             siteInit=self.perHostMpiExec + ' ls '+self.submitdir+'>/dev/null'
             os.system(siteInit)
+            
+
+    def do_perProcMpiExec(self, workdir, program):
+        return os.popen2(self.perProcMpiExec % (workdir, program))
+
+    def runonly_perProcMpiExec(self, workdir, program):
+        os.system(self.perProcMpiExec % (workdir, program))
+
+    def do_perSpecProcMpiExec(self, machinefile, nproc, workdir, program):
+        return os.popen3(self.perProcMpiExec % (machinefile, nproc, workdir, program))
