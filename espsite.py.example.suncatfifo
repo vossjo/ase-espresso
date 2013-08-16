@@ -58,5 +58,5 @@ class config:
 
     def do_perSpecProcMpiExec(self, machinefile, nproc, workdir, program):
         os.system(self.fifogen%workdir)
-        i,o,e = os.popen3(self.perProcMpiExec % (machinefile, nproc, workdir, program))
+        i,o,e = os.popen3(self.perSpecProcMpiExec % (machinefile, nproc, workdir, program))
         return open(workdir+'/ase3inpfifo', 'w+'), o, e

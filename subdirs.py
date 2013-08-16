@@ -55,6 +55,9 @@ def cleanup(tmp, scratch, removewf, removesave, calc, site):
     os.chdir(tmp)
     os.system(pernodeexec + ' rm -r '+scratch+' 2>/dev/null')
     os.chdir(cdir)
+    if hasattr(site, 'mpdshutdown') and not os.environ.has_key('QEASE_MPD_ISSHUTDOWN'):
+        os.environ['QEASE_MPD_ISSHUTDOWN'] = 'yes'
+        os.system(site.mpdshutdown)
 
 def getsubmitorcurrentdir(site):
     s = site.submitdir

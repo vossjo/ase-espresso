@@ -1,0 +1,61 @@
+# cluster-dependent definitions
+# espresso.py will make use of all "self" variables in config class
+# although not necessary for the installation at the suncat cluster,
+# we use a named pipe instead of stdio for sending coordinates back to pw.x
+# as an example how to set this up
+import os
+
+class config:
+    def __init__(self):
+        self.scratch = '/scratch'
+        if not os.path.exists(self.scratch):
+            self.scratch = '/tmp'
+        self.submitdir = os.getenv('PBS_O_WORKDIR')
+        self.batch = self.submitdir!=None
+        #check for batch
+        if self.batch:
+            nodefile = os.getenv('PBS_NODEFILE')
+            f = open(nodefile, 'r')
+            procs = [x.strip() for x in f.readlines()]
+            f.close()
+            self.procs = procs
+            self.jobid = os.getenv('PBS_JOBID')
+
+            nprocs = len(procs)
+            self.nprocs = nprocs
+            
+            uniqnodefile = self.scratch+'/uniqnodefile'
+            os.system('uniq $PBS_NODEFILE >'+uniqnodefile)
+            p = os.popen('wc -l <'+uniqnodefile, 'r')
+            nnodes = p.readline().strip()
+            p.close()
+        
+            self.perHostMpiExec = 'mpiexec -machinefile '+uniqnodefile+' -np '+nnodes
+            self.perProcMpiExec = 'mpiexec -machinefile '+nodefile+' -np '+str(nprocs)+' -wdir %s %s'
+            self.perSpecProcMpiExec = 'mpiexec -machinefile %s -np %d -wdir %s %s'
+
+            #put mpi and pw.x in path if not already there
+            p = os.environ['PATH']
+            os.environ['PATH']='/opt/dft/espresso/bin:/usr/local/mpich2/bin:'+p
+            #boot mpd if not already done
+            if not os.environ.has_key('QEASE_MPD_BOOTED'):
+                os.system('mpdboot -f '+uniqnodefile+' -r ssh -n '+nnodes)
+                os.system('mpdtrace -l -v')
+                os.environ['QEASE_MPD_BOOTED'] = 'yes'
+
+            self.mpdshutdown = 'mpdallexit'
+
+
+    def do_perProcMpiExec(self, workdir, program):
+        os.system(self.fifogen%workdir)
+        o = os.popen(self.perProcMpiExec % (workdir, program), 'r')
+        return open(workdir+'/ase3inpfifo', 'w+'), o 
+
+    def runonly_perProcMpiExec(self, workdir, program):
+        os.system(self.fifogen%workdir)
+        os.system(self.perProcMpiExec % (workdir, program))
+
+    def do_perSpecProcMpiExec(self, machinefile, nproc, workdir, program):
+        os.system(self.fifogen%workdir)
+        i,o,e = os.popen3(self.perSpecProcMpiExec % (machinefile, nproc, workdir, program))
+        return open(workdir+'/ase3inpfifo', 'w+'), o, e

@@ -48,4 +48,4 @@ class config:
         os.system(self.perProcMpiExec % (workdir, program))
 
     def do_perSpecProcMpiExec(self, machinefile, nproc, workdir, program):
-        return os.popen3(self.perProcMpiExec % (machinefile, nproc, workdir, program))
+        return os.popen3(self.perSpecProcMpiExec % (machinefile, nproc, workdir, program))
