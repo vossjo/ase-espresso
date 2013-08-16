@@ -5,7 +5,7 @@ msg:
 install:
 	python setup.py install
 
-EXTRAFILES = espsite.py.example
+EXTRAFILES = espsite.py.example.*
 
 py = python
 esp = $(instdir)/espresso
