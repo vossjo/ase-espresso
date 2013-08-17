@@ -1,4 +1,15 @@
 #!/usr/bin/env python
+
+
+#****************************************************************************
+# Copyright (C) 2013 SUNCAT
+# This file is distributed under the terms of the
+# GNU General Public License. See the file `COPYING'
+# in the root directory of the present distribution,
+# or http://www.gnu.org/copyleft/gpl.txt .
+#****************************************************************************
+
+
 from sys import argv,exit,stderr
 if len(argv)!=3:
     print >>stderr, 'usage: '+argv[0]+' pw-log output.traj'

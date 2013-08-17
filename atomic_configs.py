@@ -1,3 +1,12 @@
+#****************************************************************************
+# Copyright (C) 2013 SUNCAT
+# This file is distributed under the terms of the
+# GNU General Public License. See the file `COPYING'
+# in the root directory of the present distribution,
+# or http://www.gnu.org/copyleft/gpl.txt .
+#****************************************************************************
+
+
 atomic_configs = [
     # 1 H: 1s1
     ([1, 0, 1],),

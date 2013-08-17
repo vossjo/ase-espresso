@@ -1,3 +1,14 @@
+/****************************************************************************
+ Copyright (C) 2013 SUNCAT
+ This file is distributed under the terms of the
+ GNU General Public License. See the file `COPYING'
+ in the root directory of the present distribution,
+ or http://www.gnu.org/copyleft/gpl.txt .
+
+
+ espfilter increases the buffer size of a pipe if needed
+****************************************************************************/
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
