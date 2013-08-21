@@ -1292,7 +1292,7 @@ class espresso(Calculator):
     def get_nonselfconsistent_energies(self, type='beefvdw'):
         #assert self.xc is 'BEEF'
         self.stop()
-        p = os.popen('grep -32 "BEEF xc energy contributions" '+self.log+' | tail -32','r')
+        p = os.popen('grep -32 "BEEF-vdW xc energy contributions" '+self.log+' | tail -32','r')
         s = p.readlines()
         p.close()
         xc = np.array([])
