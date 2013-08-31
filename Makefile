@@ -22,7 +22,7 @@ doinstall:
 	mkdir -p $(esp)
 	mkdir -p $(bindir)
 	cp `ls *.py|sed 's/setup.py\|__init__.py//'` $(EXTRAFILES) $(esp)
-	sed s/SVNVERSION/$(shell svnversion 2>/dev/null|| echo no_version_found)/g <__init__.py >$(esp)/__init__.py
+	sed s/GITVERSION/$(shell git describe --always 2>/dev/null|| echo no_version_found)-git/g <__init__.py >$(esp)/__init__.py
 	$(py) -m compileall $(esp)
 	$(CC) -s -O2 -o $(esp)/espfilter c-src/espfilter.c
 	$(CC) -s -O2 -o $(bindir)/cubecutperiodic c-src/cubecutperiodic.c

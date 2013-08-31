@@ -6,7 +6,7 @@
 # or http://www.gnu.org/copyleft/gpl.txt .
 #****************************************************************************
 
-svnver = 'SVNVERSION'
+gitver = 'GITVERSION'
 import os
 
 try:
@@ -852,11 +852,11 @@ class espresso(Calculator):
         if self.writeversion:
             self.writeversion = False
             s = open(self.log,'a')
-            s.write('  python dir         : '+self.mypath+'\n')
+            s.write('  python dir          : '+self.mypath+'\n')
             exedir = os.path.dirname(os.popen('which pw.x').readline())
-            s.write('  espresso dir       : '+exedir+'\n')
-            s.write('  pseudo dir         : '+self.psppath+'\n')
-            s.write('  espresso py svn    : '+svnver+'\n\n\n')
+            s.write('  espresso dir        : '+exedir+'\n')
+            s.write('  pseudo dir          : '+self.psppath+'\n')
+            s.write('  ase-espresso py git : '+gitver+'\n\n\n')
             s.close()
 
         if not self.started and not self.only_init:
