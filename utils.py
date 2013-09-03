@@ -10,36 +10,17 @@
 import numpy as np
 from ase import constraints
 
-def uniqueness(list1, list2):
-    """
-    Find the elements that are belonging to a group in both list1 and list2,
-    where a group is defines as 2 or more elements that share the same
-    value. 
-    """
-    assert len(list1) == len(list2)
-    if len(list1)==1:
-        return [1]
-    l1_u = np.unique(list1)
-    l2_u = np.unique(list2)
-    unique = np.zeros(len(list1))
-    kk = 0
-    for u_l1 in l1_u:
-        UK1 = np.where(list1 == u_l1)[0]
-        UL1 = [pp in UK1 for pp in range(len(list1))]
-        for u_l2 in l2_u:
-            UK2 = np.where(list2 == u_l2)[0]
-            UL2 = [pp in UK2 for pp in range(len(list1))]
-            UUL = [UL1[pp]*UL2[pp] for pp in range(len(list1))]
-            if len(np.where(np.array(UUL) != 0)[0]) == 0:
-                continue 
-            kk += 1
-            unique += [kk*UUL[pp] for pp in range(len(list1))]
-    # fill out zeros
-    umax = np.max(unique)
-    zeros = np.where(unique==0)[0]
-    for ppk, pp in enumerate(zeros):
-        unique[pp] += ppk+umax
-    return unique.astype(int)
+
+class specobj:
+    #small species class containing the attributes of a species
+    def __init__(self, s='X', mass=0., magmom=0., U=0., J=0., U_alpha=0.):
+        self.s = s
+        self.mass = mass
+        self.magmom = magmom
+        self.U = U
+        self.J = J
+        self.U_alpha = U_alpha
+
 
 #add 'd0' to floating point number to avoid random trailing digits in Fortran input routines
 def num2str(x):

@@ -483,114 +483,90 @@ svn co --username anonymous http://qeforge.qe-forge.org/svn/q-e/branches/espress
         except:
             pass
 
+
     def atoms2species(self):
         # Define several properties of the quantum espresso species from the ase atoms object.
-        #
-        #Constructs a dictionary (self.specdict) with the elements and their associated properties.
-        #Each element has the keys: 
-        #'mass', 
-        #'magmoms' : a list with the number of unique magnetic moments, used to define # of species
-        #
-        #Constructs self.specprops which contain species labels, masses, magnetic moments, and positions.
-        #Also defines self.species and self.nspecies.
+        # Takes into account that different spins (or different U etc.) on same kind of
+        # chemical elements are considered different species in quantum espresso
+
+        symbols = self.atoms.get_chemical_symbols()
+        masses = self.atoms.get_masses()
+        magmoms = list(self.atoms.get_initial_magnetic_moments())
+        if len(magmoms)<len(symbols):
+            magmoms += list(np.zeros(len(symbols)-len(magmoms), np.float))
+        pos = self.atoms.get_scaled_positions()
+
+        if self.U is not None:
+            if type(self.U)==dict:
+                Ulist = np.zeros(len(symbols), np.float)
+                for i,s in enumerate(symbols):
+                    if self.U.has_key(s):
+                        Ulist[i] = self.U[s]
+            else:
+                Ulist = list(self.U)
+                if len(Ulist)<len(symbols):
+                    Ulist += list(np.zeros(len(symbols)-len(Ulist), np.float))
+        else:
+            Ulist = np.zeros(len(symbols), np.float)
+
+        if self.J is not None:
+            if type(self.J)==dict:
+                Jlist = np.zeros(len(symbols), np.float)
+                for i,s in enumerate(symbols):
+                    if self.J.has_key(s):
+                        Jlist[i] = self.J[s]
+            else:
+                Jlist = list(self.J)
+                if len(Jlist)<len(symbols):
+                    Jlist += list(np.zeros(len(symbols)-len(Jlist), np.float))
+        else:
+            Jlist = np.zeros(len(symbols), np.float)
+
+        if self.U_alpha is not None:
+            if type(self.U_alpha)==dict:
+                U_alphalist = np.zeros(len(symbols), np.float)
+                for i,s in enumerate(symbols):
+                    if self.U_alpha.has_key(s):
+                        U_alphalist[i] = self.U_alpha[s]
+            else:
+                U_alphalist = list(self.U_alpha)
+                if len(U_alphalist)<len(symbols):
+                    U_alphalist += list(np.zeros(len(symbols)-len(U_alphalist), np.float))
+        else:
+            U_alphalist = np.zeros(len(symbols), np.float)
+
+        self.species = []
+        self.specprops = []
+        dic = {}
+        symcounter = {}
+        for s in symbols:
+            symcounter[s] = 0
+        for i in range(len(symbols)):
+            key = symbols[i]+'_m%.14eU%.14eJ%.14eUa%.14e' % (magmoms[i],Ulist[i],Jlist[i],U_alphalist[i])
+            if dic.has_key(key):
+                self.specprops.append((dic[key][1],pos[i]))
+            else:
+                symcounter[symbols[i]] += 1
+                spec = symbols[i]+str(symcounter[symbols[i]])
+                dic[key] = [i,spec]
+                self.species.append(spec)
+                self.specprops.append((spec,pos[i]))
         
-        atypes = list( set(self.atoms.get_chemical_symbols()) )
-        
-        aprops = zip(self.atoms.get_chemical_symbols(), self.atoms.get_masses(),
-                     self.atoms.get_initial_magnetic_moments(), 
-                     self.atoms.get_scaled_positions())
-        
-        magmoms = self.atoms.get_initial_magnetic_moments()
-        
-        #### CREATE DICTIONARY FOR EACH ATOM TYPE ####
-        typedict = {}
-        for atype in atypes:
-            typedict[atype] = {}
-            maglist  = []
-            masslist = []
-            Ulist    = []
-            Jlist    = []
-            U_alphalist = []
-            for i, atom in enumerate(self.atoms):
-                if atom.symbol == atype:
-                    try:
-                        maglist.append(magmoms[i])
-                    except:
-                        maglist.append(0.)
-                    masslist.append(atom.mass)
-                    if self.U is not None:
-                        if i in self.U:
-                            Ulist.append(self.U[i])
-                        elif atom.symbol in self.U:
-                            Ulist.append(self.U[atom.symbol])
-                        else:
-                            Ulist.append(num2str(0.))
-                    if self.J is not None:
-                        if i in self.J:
-                            Jlist.append(self.J[i])
-                        elif atom.symbol in self.J:                          
-                            Jlist.append(self.J[atom.symbol])
-                        else:
-                            Jlist.append(num2str(0.))
-                    if self.U_alpha is not None:
-                        if i in self.U_alpha:
-                            U_alphalist.append(self.U_alpha[i])
-                        elif atom.symbol in self.U_alpha:
-                            U_alphalist.append(self.U_alpha[atom.symbol])
-                        else:
-                            U_alphalist.append(num2str(0.))
-            
-            typedict[atype]['magmoms'] = list( set(maglist) )
-            typedict[atype]['mass'] = list( set(masslist) )
-            #### uniqueness identify which atoms of same type that are unique
-            un = uniqueness(maglist,masslist)
-            if self.U is not None:
-                typedict[atype]['U'] = list( set(Ulist))
-                un = uniqueness(un,Ulist)
-            if self.J is not None:
-                typedict[atype]['J'] = list( set(Jlist))
-                un = uniqueness(un,Jlist)
-            if self.U_alpha is not None:
-                typedict[atype]['U_alpha'] = list( set(U_alphalist))
-                un = uniqueness(un,U_alphalist)
-            typedict[atype]['indexes']=[int(kk) for kk in un]
+        self.nspecies = len(self.species)
+        self.specdict = {}
+        for i,s in dic.values():
+            self.specdict[s] = specobj(s = s.strip('0123456789'), #chemical symbol w/o index
+                                       mass = masses[i],
+                                       magmom = magmoms[i],
+                                       U = Ulist[i],
+                                       J = Jlist[i],
+                                       U_alpha = U_alphalist[i])
 
-
-        #### CREATE INDICES FOR EACH ATOM TYPE WITH A UNIQUE SET OF MAGMOM, U, 
-        ##   J, U_alpha STARTING AT 1 ####
-
-
-        speciesindex = []
-        for type, info in typedict.iteritems():
-            for val in info['indexes']:
-                speciesindex.append(type+str(val))
-
-        #for type, info in typedict.iteritems():
-        #    for num in 
-        #    #tcount = 1
-        #    #for mag in info['magmoms']:
-        #    #    speciesindex.append(type+str(tcount))
-        #    #    tcount += 1
-
-        #### UPDATE THE SPECIES PROPERTIES TO INCLUDE THE SPECIES ID #####
-        specprops = []
-        index_counter = np.zeros(len(atypes)).astype(int)
-        jj = 0
-        for ii, a in enumerate(aprops):
-            atypeindex = np.where(np.array(atypes)==a[0])[0][0]
-            index = typedict[a[0]]['indexes'][index_counter[atypeindex]]
-            specprops.append( (a[0]+str(index),a[1],a[2],a[3]))
-            index_counter[atypeindex]+=1
-        
-        self.specdict  = typedict
-        self.species   = np.unique(speciesindex)
-        self.nspecies  = len(self.species)
-        self.specprops = specprops
 
     def get_nvalence(self):
         nel = {}
         for x in self.species:
-            el = x.strip('0123456789')
+            el = self.specdict[x].s
             #get number of valence electrons from pseudopotential or paw setup
             p = os.popen('egrep -i \'z\ valence|z_valence\' '+self.psppath+'/'+el+'.UPF | tr \'"\' \' \'','r')
             for y in p.readline().split():
@@ -598,12 +574,13 @@ svn co --username anonymous http://qeforge.qe-forge.org/svn/q-e/branches/espress
                     nel[el] = int(round(float(y)))
                     break
             p.close()
-        nvalence = np.zeros(len(self.specprops))
+        nvalence = np.zeros(len(self.specprops), np.int)
         for i,x in enumerate(self.specprops):
-            nvalence[i] = nel[x[0].strip('0123456789')]
+            nvalence[i] = nel[self.specdict[x[0]].s]
         #if not self.spinpol:
         #    nvalence /= 2 
         return nvalence, nel
+
 
     def writeinputfile(self, filename='pw.inp', mode=None,
         overridekpts=None, overridekptshift=None, overridenbands=None,
@@ -723,9 +700,9 @@ svn co --username anonymous http://qeforge.qe-forge.org/svn/q-e/branches/espress
             if self.nel == None:
                 self.nvalence, self.nel = self.get_nvalence()
             for species in self.species: # FOLLOW SAME ORDERING ROUTINE AS FOR PSP                
-                magindex = int(string.join([i for i in species if i.isdigit()],''))
-                el  = species.strip('0123456789')
-                mag = self.specdict[el]['magmoms'][magindex-1]/self.nel[el]
+                spec = self.specdict[species]
+                el = spec.s
+                mag = spec.magmom/self.nel[el]
                 assert np.abs(mag) <= 1. # magnetization oversaturated!!!
                 print >>f, '  starting_magnetization(%d)=%s,' % (spcount,num2str(float(mag)))
                 spcount += 1
@@ -737,9 +714,9 @@ svn co --username anonymous http://qeforge.qe-forge.org/svn/q-e/branches/espress
             if self.nel == None:
                 self.nvalence, self.nel = self.get_nvalence()
             for species in self.species: # FOLLOW SAME ORDERING ROUTINE AS FOR PSP                
-                magindex = int(string.join([i for i in species if i.isdigit()],''))
-                el  = species.strip('0123456789')
-                mag = self.specdict[el]['magmoms'][magindex-1]/self.nel[el]
+                spec = self.specdict[species]
+                el = spec.s
+                mag = spec.magmom/self.nel[el]
                 assert np.abs(mag) <= 1. # magnetization oversaturated!!!
                 print >>f, '  starting_magnetization(%d)=%s,' % (spcount,num2str(float(mag)))
                 spcount += 1
@@ -804,33 +781,21 @@ svn co --username anonymous http://qeforge.qe-forge.org/svn/q-e/branches/espress
             print >>f, '  U_projection_type=\"%s\",' % (self.U_projection_type)
             if self.U is not None:
                 for i,s in enumerate(self.species):
-                    el = s.strip('0123456789')
-                    if self.U.has_key(i):
-                        Ui = self.U[i]
-                    elif self.U.has_key(el):
-                        Ui = self.U[el]
-                    else:
-                        Ui = 0.0
+                    spec = self.specdict[s]
+                    el = spec.s
+                    Ui = spec.U
                     print >>f, '  Hubbard_U('+str(i+1)+')='+num2str(Ui)+','
             if self.J is not None:
                 for i,s in enumerate(self.species):
-                    el = s.strip('0123456789')
-                    Ji ='KK'
-                    if self.U.has_key(i):
-                         Ji = self.J[i]
-                    elif self.U.has_key(el):
-                         Ji = self.J[el]
-                    if Ji != 'KK':
-                        print >>f, '  Hubbard_J('+str(i+1)+')='+num2str(Ji)+','
+                    spec = self.specdict[s]
+                    el = spec.s
+                    Ji = spec.J
+                    print >>f, '  Hubbard_J('+str(i+1)+')='+num2str(Ji)+','
             if self.U_alpha is not None:
-                for i, s in enumerate(self.species):
-                    el = s.strip('0123456789')
-                    if self.U_alpha.has_key(i):
-                         U_alphai = self.U_alpha[i]
-                    elif self.U.has_key(el):
-                         U_alphai = self.U_alpha[el]
-                    else:
-                         U_alphai = 0.0
+                for i,s in enumerate(self.species):
+                    spec = self.specdict[s]
+                    el = spec.s
+                    U_alphai = spec.U_alpha
                     print >>f, '  Hubbard_alpha('+str(i+1)+')='+num2str(U_alphai)+','
         
         if self.nosym:
@@ -906,15 +871,15 @@ svn co --username anonymous http://qeforge.qe-forge.org/svn/q-e/branches/espress
 
         print >>f, 'ATOMIC_SPECIES'
         for species in self.species:   # PSP ORDERING FOLLOWS SPECIESINDEX
-            el = species.strip('0123456789')
-            print >>f, species, self.specdict[el]['mass'][0], el+'.UPF'
+            spec = self.specdict[species]
+            print >>f, species, num2str(spec.mass), spec.s+'.UPF'
         
         print >>f, 'ATOMIC_POSITIONS {crystal}'
         if len(simpleconstr)==0:
-            for species, mass, magmom, pos in self.specprops:
+            for species, pos in self.specprops:
                 print >>f, '%-4s %21.15fd0 %21.15fd0 %21.15fd0' % (species,pos[0],pos[1],pos[2])
         else:
-            for i, (species, mass, magmom, pos) in enumerate(self.specprops):
+            for i, (species, pos) in enumerate(self.specprops):
                 print >>f, '%-4s %21.15fd0 %21.15fd0 %21.15fd0   %d  %d  %d' % (species,pos[0],pos[1],pos[2],simpleconstr[i][0],simpleconstr[i][1],simpleconstr[i][2])
 
         if len(otherconstr)!=0:
