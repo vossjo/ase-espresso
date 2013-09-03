@@ -44,6 +44,9 @@ class config:
     def do_perProcMpiExec(self, workdir, program):
         return os.popen2(self.perProcMpiExec % (workdir, program))
 
+    def do_perProcMpiExec_outputonly(self, workdir, program):
+        return os.popen(self.perProcMpiExec % (workdir, program), 'r')
+
     def runonly_perProcMpiExec(self, workdir, program):
         os.system(self.perProcMpiExec % (workdir, program))
 

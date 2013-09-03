@@ -12,10 +12,21 @@ from espresso import espresso
 import numpy as np
 
 class vibespresso(Calculator):
+    """
+    Special espresso calculator, which expects the first calculation to
+    be performed for a structure without displacements. All subsequent
+    calculations are then initialized with the Kohn-Sham potential of
+    the first calculation to speed up vibrational calculations.
+    """
     def __init__(self,
         outdirprefix = 'out',
         **kwargs
         ):
+        """
+        In addition to the parameters of a standard espresso calculator,
+        outdirprefix (default: 'out') can be specified, which will be the
+        prefix of the output of the calculations for different displacements
+        """
         
         self.arg = kwargs.copy()
         self.outdirprefix = outdirprefix
@@ -45,7 +56,7 @@ class vibespresso(Calculator):
                 self.esp.get_potential_energy(atoms)
                 self.esp.save_chg(self.equilibriumdensity)
                 self.firststep = False
-            else:                
+            else:
                 self.arg['startingpot'] = 'file'
                 self.esp = espresso(**self.arg)
                 self.esp.set_atoms(atoms)

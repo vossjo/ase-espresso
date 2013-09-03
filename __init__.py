@@ -32,6 +32,9 @@ espresso_calculators = []
 
 
 class espresso(Calculator):
+    """
+    ase interface for Quantum Espresso
+    """
     def __init__(self,
                  atoms = None,
                  pw = 350.0,
@@ -94,6 +97,170 @@ class espresso(Calculator):
                  procrange = None, #let this espresso calculator run only on a subset of the requested cpus
                  numcalcs = None,  #used / set by multiespresso class
                  verbose = 'low'):
+        """
+    Construct an ase-espresso calculator.
+    Parameters (with defaults in parentheses):
+     atoms (None)
+        list of atoms object to be attached to calculator
+        atoms.set_calculator can be used instead
+     onlycreatepwinp (None)
+        if not None but 'filename', create input file 'filename' for pw.x
+        but do not run pw.x
+        calc.initialize(atoms) will trigger 'filename' to be written
+     pw (350.0)
+        plane-wave cut-off in eV
+     dw (10*pw)
+        charge-density cut-off in eV
+     nbands (-10)
+        number of bands, if negative: -n extra bands
+     kpts ( (1,1,1) )
+        k-point grid sub-divisions, k-point grid density,
+        or explicit list of k-points
+     kptshift ( (0,0,0) )
+        shift of k-point grid
+     mode ( 'ase3' )
+        relaxation mode:
+        - 'ase3': dynamic communication between Quantum Espresso and python
+        - 'relax', 'scf', 'nscf': corresponding Quantum Espresso standard modes
+     opt_algorithm ( 'ase3' )
+        - 'ase3': ase updates coordinates during relaxation
+        - 'relax' and other Quantum Espresso standard relaxation modes:
+                  Quantum Espresso own algorithms for structural optimization
+                  are used
+        Obtaining Quantum Espresso with the ase3 relaxation extensions is
+        highly recommended, since it allows for using ase's optimizers without
+        loosing efficiency:
+svn co --username anonymous http://qeforge.qe-forge.org/svn/q-e/branches/espresso-dynpy-beef
+     fmax (0.05)
+        max force limit for Espresso-internal relaxation (eV/Angstrom)
+     constr_tol (None)
+        constraint tolerance for Espresso-internal relaxation
+     cell_dynamics (None)
+        algorithm (e.g. 'BFGS') to be used for Espresso-internal
+        unit-cell optimization
+     press (None)
+        target pressure for such an optimization
+     dpress (None)
+        convergence limit towards target pressure
+     cell_factor (None)
+        should be >>1 if unit-cell volume is expected to shrink a lot during
+        relaxation (would be more efficient to start with a better guess)
+     cell_dofree (None)
+        partially fix lattice vectors
+     nosym (False)
+     noinv (False)
+     nosym_evc (False)
+     no_t_rev (False)
+        turn off corresp. symmetries
+     xc ('PBE')
+        xc-functional to be used
+     beefensemble (False)
+        calculate basis energies for ensemble error estimates based on
+        the BEEF-vdW functional
+     printensemble (False)
+        let Espresso itself calculate 2000 ensemble energies
+     psppath (None)
+        Directory containing the pseudo-potentials or paw-setups to be used.
+        The ase-espresso interface expects all pot. files to be of the type
+        element.UPF (e.g. H.UPF).
+        If None, the directory pointed to be ESP_PSP_PATH is used.
+     spinpol (False)
+        If True, calculation is spin-polarized
+     noncollinear (False)
+        Non-collinear magnetism.
+     spinorbit (False)
+        If True, spin-orbit coupling is considered.
+        Make sure to provide j-dependent pseudo-potentials in psppath
+        for those elements where spin-orbit coupling is important
+     outdir (None)
+        directory where Espresso's output is collected,
+        default: qe<random>
+     txt (None)
+        If not None, direct Espresso's output to a different file than
+        outdir/log
+     calcstress (False)
+        If True, calculate stress
+     occupations ('smearing')
+        Controls how Kohn-Sham states are occupied.
+        Possible values: 'smearing', 'fixed' (molecule or insulator),
+        or 'tetrahedra'.
+     smearing ('fd')
+        method for Fermi surface smearing
+        - 'fd','Fermi-Dirac': Fermi-Dirac
+        - 'mv','Marzari-Vanderbilt': Marzari-Vanderbilt cold smearing
+        - 'gauss','gaussian': Gaussian smearing
+        - 'mp','Methfessel-Paxton': Methfessel-Paxton
+     sigma (0.1)
+        smearing width in eV
+     tot_charge (None)
+        charge the unit cell,
+        +1 means 1 e missing, -1 means 1 extra e
+     charge (None)
+        overrides tot_charge (ase 3.7+ compatibility)
+     tot_magnetization (-1)
+        Fix total magnetization,
+        -1 means unspecified/free,
+        'hund' means Hund's rule for each atom
+     fix_magmom (False)
+        If True, fix total magnetization to current value.
+     U (None)
+        specify Hubbard U values (in eV)
+        U can be list: specify U for each atom
+        U can be a dictionary ( e.g. U={'Fe':3.5} )
+        U values are assigned to angular momentum channels
+        according to Espresso's hard-coded defaults
+        (i.e. l=2 for transition metals, l=1 for oxygen, etc.)
+     J (None)
+        specify exchange J values (in eV)
+        can be list or dictionary (see U parameter above)
+     U_alpha
+        U_alpha (in eV)
+        can be list or dictionary (see U parameter above)
+     U_projection_type ('atomic')
+        type of projectors for calculating density matrices in DFT+U schemes
+     dipole ( {'status':False} )
+        If 'status':True, turn on dipole correction; then by default, the
+        dipole correction is applied along the z-direction, and the dipole is
+        put in the center of the vacuum region (taking periodic boundary
+        conditions into account).
+        This can be overridden with:
+        - 'edir':1, 2, or 3 for x-, y-, or z-direction
+        - 'emaxpos':float percentage wrt. unit cell where dip. correction
+          potential will be max.
+        - 'eopreg':float percentage wrt. unit cell where potential decreases
+        - 'eamp':0 (by default) if non-zero overcompensate dipole: i.e. apply
+          a field
+     output ( {'disk_io':'default',  # how often espresso writes wavefunctions to disk
+               'avoidio':False,  # will overwrite disk_io parameter if True
+               'removewf':True,
+               'removesave':False,
+               'wf_collect':False} )
+        control how much io is used by espresso;
+        'removewf':True means wave functions are deleted in scratch area before
+        job is done and data is copied back to submission directory
+        'removesave':True means whole .save directory is deleted in scratch area
+     convergence ( {'energy':1e-6,
+                    'mixing':0.7,
+                    'maxsteps':100,
+                    'diag':'david'} )
+        Electronic convergence criteria and diag. and mixing algorithms.
+        Additionally, a preconditioner for the mixing algoritms can be
+        specified, e.g. 'mixing_mode':'local-TF' or 'mixing_mode':'TF'.
+     startingpot (None)
+        By default: 'atomic' (use superposition of atomic orbitals for
+        initial guess)
+        'file': construct potential from charge-density.dat
+        Can be used with load_chg and save_chg methods.
+     startingwfc (None)
+        By default: 'atomic'.
+        Other options: 'atomic+random' or 'random'.
+        'file': reload wave functions from other calculations.
+        See load_wf and save_wf methods.
+     parflags (None)
+        Parallelization flags for Quantum Espresso.
+        E.g. parflags='-npool 2' will distribute k-points (and spin if
+        spin-polarized) over two nodes.
+        """
         
         self.outdir= outdir
         self.onlycreatepwinp = onlycreatepwinp 
@@ -198,9 +365,9 @@ class espresso(Calculator):
 
 
     def input_update(self):
-        """ Run initialization functions, such that this can be called if variables in espresso are
-        changes using set or directly. 
-        """
+        # Run initialization functions, such that this can be called if variables in espresso are
+        #changes using set or directly.
+
         self.create_outdir() # Create the tmp output folder 
 
         #sdir is the directory the script is run or submitted from
@@ -317,16 +484,16 @@ class espresso(Calculator):
             pass
 
     def atoms2species(self):
-        """ Define several properties of the quantum espresso species from the ase atoms object.
+        # Define several properties of the quantum espresso species from the ase atoms object.
+        #
+        #Constructs a dictionary (self.specdict) with the elements and their associated properties.
+        #Each element has the keys: 
+        #'mass', 
+        #'magmoms' : a list with the number of unique magnetic moments, used to define # of species
+        #
+        #Constructs self.specprops which contain species labels, masses, magnetic moments, and positions.
+        #Also defines self.species and self.nspecies.
         
-        Constructs a dictionary (self.specdict) with the elements and their associated properties.
-        Each element has the keys: 
-        'mass', 
-        'magmoms' : a list with the number of unique magnetic moments, used to define # of species
-        
-        Constructs self.specprops which contain species labels, masses, magnetic moments, and positions.
-        Also defines self.species and self.nspecies.
-        """
         atypes = list( set(self.atoms.get_chemical_symbols()) )
         
         aprops = zip(self.atoms.get_chemical_symbols(), self.atoms.get_masses(),
@@ -397,14 +564,14 @@ class espresso(Calculator):
         for type, info in typedict.iteritems():
             for val in info['indexes']:
                 speciesindex.append(type+str(val))
-        """
-        for type, info in typedict.iteritems():
-            for num in 
-            #tcount = 1
-            #for mag in info['magmoms']:
-            #    speciesindex.append(type+str(tcount))
-            #    tcount += 1
-        """
+
+        #for type, info in typedict.iteritems():
+        #    for num in 
+        #    #tcount = 1
+        #    #for mag in info['magmoms']:
+        #    #    speciesindex.append(type+str(tcount))
+        #    #    tcount += 1
+
         #### UPDATE THE SPECIES PROPERTIES TO INCLUDE THE SPECIES ID #####
         specprops = []
         index_counter = np.zeros(len(atypes)).astype(int)
@@ -1139,6 +1306,9 @@ class espresso(Calculator):
 
 
     def save_output(self, filename='calc.tgz'):
+        """
+        Save the contents of calc.save directory.
+        """
         file = self.topath(filename)
         self.update(self.atoms)
         self.stop()
@@ -1147,6 +1317,9 @@ class espresso(Calculator):
 
 
     def load_output(self, filename='calc.tgz'):
+        """
+        Restore the contents of previously saved calc.save directory.
+        """
         self.stop()
         file = self.topath(filename)
 
@@ -1154,6 +1327,9 @@ class espresso(Calculator):
 
 
     def save_chg(self, filename='chg.tgz'):
+        """
+        Save charge density.
+        """
         file = self.topath(filename)
         self.update(self.atoms)
         self.stop()
@@ -1162,6 +1338,9 @@ class espresso(Calculator):
 
 
     def load_chg(self, filename='chg.tgz'):
+        """
+        Load charge density.
+        """
         self.stop()
         file = self.topath(filename)
 
@@ -1169,6 +1348,9 @@ class espresso(Calculator):
 
 
     def save_wf(self, filename='wf.tgz'):
+        """
+        Save wave functions.
+        """
         file = self.topath(filename)
         self.update(self.atoms)
         self.stop()
@@ -1177,6 +1359,9 @@ class espresso(Calculator):
 
 
     def load_wf(self, filename='wf.tgz'):
+        """
+        Load wave functions.
+        """
         self.stop()
         file = self.topath(filename)
 
@@ -1184,6 +1369,11 @@ class espresso(Calculator):
 
 
     def save_flev_chg(self, filename='chg.tgz'):
+        """
+        Save charge density and Fermi level.
+        Useful for subsequent bandstructure or density of states
+        calculations.
+        """
         file = self.topath(filename)
         self.update(self.atoms)
         
@@ -1195,6 +1385,11 @@ class espresso(Calculator):
 
 
     def load_flev_chg(self, filename='efchg.tgz'):
+        """
+        Load charge density and Fermi level.
+        Useful for subsequent bandstructure or density of states
+        calculations.
+        """
         self.stop()
         file = self.topath(filename)
 
@@ -1370,6 +1565,17 @@ class espresso(Calculator):
             press=None,
             dpress=None
             ):
+        """
+        Simultaneously relax unit cell and atoms using Espresso's internal
+        relaxation routines.
+        fmax,press are convergence limits and dpress is the convergence
+        criterion wrt. reaching the target pressure press
+        atoms.get_potential_energy() will yield the final energy,
+        but to obtain the structure use
+        relaxed_atoms = calc.get_final_structure()
+        If you want to continue calculations in relax_atoms, use
+        relaxed_atoms.set_calculator(some_espresso_calculator)
+        """
         self.stop()
         oldmode = self.calcmode
         oldalgo = self.opt_algorithm
@@ -1406,6 +1612,15 @@ class espresso(Calculator):
             opt_algorithm='bfgs', # {'bfgs', 'damp'}
             fmax=None
             ):
+        """
+        Relax atoms using Espresso's internal relaxation routines.
+        fmax is the force convergence limit
+        atoms.get_potential_energy() will yield the final energy,
+        but to obtain the structure use
+        relaxed_atoms = calc.get_final_structure()
+        If you want to continue calculations in relax_atoms, use
+        relaxed_atoms.set_calculator(some_espresso_calculator)
+        """
         self.stop()
         oldmode = self.calcmode
         oldalgo = self.opt_algorithm
@@ -1436,9 +1651,9 @@ class espresso(Calculator):
             os.chdir(self.localtmp)
             os.system(site.perHostMpiExec+' cp '+self.localtmp+'/'+inp+' '+self.scratch)
             if piperead:
-                p = os.popen(site.perProcMpiExec+' -wdir '+self.scratch+' '+binary+' '+self.parflags+' -in '+inp+ll, 'r')
+                p = site.do_perProcMpiExec_outputonly(self.scratch, binary+' '+self.parflags+' -in '+inp+ll)
             else:
-                os.system(site.perProcMpiExec+' -wdir '+self.scratch+' '+binary+' '+self.parflags+' -in '+inp+ll)
+                site.runonly_perProcMpiExec(self.scratch, binary+' '+self.parflags+' -in '+inp+ll)
             os.chdir(cdir)
         else:
             os.system('cp '+self.localtmp+'/'+inp+' '+self.scratch)
@@ -1513,6 +1728,36 @@ class espresso(Calculator):
         nscf_fermilevel=False,
         add_higher_channels=False,
         get_overlap_integrals=False):
+        """
+        Calculate (projected) density of states.
+        - Emin,Emax,DeltaE define the energy window.
+        - nscf=True will cause a non-selfconsistent calculation to be performed
+          on top of a previous converged scf calculation, with the advantage
+          that more kpts and more nbands can be defined improving the quality/
+          increasing the energy range of the DOS.
+        - tetrahedra=True (in addition to nscf=True) means use tetrahedron
+          (i.e. smearing-free) method for DOS
+        - slab=True: use triangle method insead of tetrahedron method
+          (for 2D system perp. to z-direction)
+        - sigma != None sets/overrides the smearing to calculate the DOS
+          (also overrides tetrahedron/triangle settings)
+        - get_overlap_integrals=True: also return k-point- and band-resolved
+          projections (which are summed up and smeared to obtain the PDOS)
+
+        Returns an array containing the energy window,
+        the DOS over the same range,
+        and the PDOS as an array (index: atom number 0..n-1) of dictionaries.
+        The dictionary keys are the angular momentum channels 's','p','d'...
+        (or e.g. 'p,j=0.5', 'p,j=1.5' in the case of LS-coupling).
+        Each dictionary contains an array of arrays of the total and
+        m-resolved PDOS over the energy window.
+        In case of spin-polarization, total up is followed by total down, by
+        first m with spin up, etc...
+
+        Quantum Espresso with the tetrahedron method for PDOS can be
+        obtained here:
+svn co --username anonymous http://qeforge.qe-forge.org/svn/q-e/branches/espresso-dynpy-beef
+        """
 
         efermi = self.get_fermi_level()
 
@@ -1576,8 +1821,13 @@ class espresso(Calculator):
             spl = inpfile.split('#')
             iatom = int(spl[1].split('(')[0])-1
             channel = spl[2].split('(')[1].rstrip(')').replace('_j',',j=')
-            #ncomponents = 2*l+1 +1  (latter for m summed up)
-            ncomponents = (2*channels[channel[0]]+2) * nspin
+            jpos = channel.find('j=')
+            if jpos<0:
+                #ncomponents = 2*l+1 +1  (latter for m summed up)
+                ncomponents = (2*channels[channel[0]]+2) * nspin
+            else:
+                #ncomponents = 2*j+1 +1  (latter for m summed up)
+                ncomponents = int(2.*float(channel[jpos+2:]))+2
             if not self.pdos[iatom].has_key(channel):
                 self.pdos[iatom][channel] = np.zeros((ncomponents,npoints), np.float)
                 first = True
@@ -1597,6 +1847,16 @@ class espresso(Calculator):
         kptpath,
         nbands = None,
         atomic_projections = False):
+        """
+        Calculate bandstructure along kptpath (= array of k-points).
+        If nbands is not None, override number of bands set in calculator.
+        If atomic_projections is True, calculate orbital character of
+        each band at each k-point.
+        
+        Returns an array of energies.
+        (if spin-polarized spin is first index;
+        the next index enumerates the k-points)
+        """
 
         efermi = self.get_fermi_level()
 
@@ -1776,7 +2036,7 @@ class espresso(Calculator):
         if kpt is not None and spinall:
             return np.array(eig[0])
         elif kpt is None and spinall and self.spinpol:
-            return np.reshape(np.array(eig), (2,nkp2))
+            return np.reshape(np.array(eig), (2,nkp2,nbnd))
         else:
             return np.array(eig)
             
@@ -1835,6 +2095,10 @@ class espresso(Calculator):
 
 
     def extract_charge_density(self, spin='both'):
+        """
+        Obtains the charge density as a numpy array after a DFT calculation.
+        Returns (origin,cell,density).
+        """
         if spin=='both' or spin==0:
             s = 0
         elif spin=='up' or spin==1:
@@ -1852,6 +2116,10 @@ class espresso(Calculator):
         return (origin,cell,data)
 
     def xsf_charge_density(self, xsf, spin='both'):
+        """
+        Writes the charge density from a DFT calculation
+        to an input file for xcrysden.
+        """
         if spin=='both' or spin==0:
             s = 0
         elif spin=='up' or spin==1:
@@ -1868,6 +2136,10 @@ class espresso(Calculator):
 
 
     def extract_total_potential(self, spin='both'):
+        """
+        Obtains the total potential as a numpy array after a DFT calculation.
+        Returns (origin,cell,potential).
+        """
         if spin=='both' or spin==0:
             s = 0
         elif spin=='up' or spin==1:
@@ -1885,6 +2157,10 @@ class espresso(Calculator):
         return (origin,cell,data)
 
     def xsf_total_potential(self, xsf, spin='both'):
+        """
+        Writes the total potential from a DFT calculation
+        to an input file for xcrysden.
+        """
         if spin=='both' or spin==0:
             s = 0
         elif spin=='up' or spin==1:
@@ -1901,6 +2177,10 @@ class espresso(Calculator):
 
 
     def extract_local_ionic_potential(self):
+        """
+        Obtains the local ionic potential as a numpy array after a DFT calculation.
+        Returns (origin,cell,potential).
+        """
         p = self.run_ppx('vbare.inp',
             inputpp=[['plot_num',2]],
             piperead=True, parallel=False)
@@ -1909,6 +2189,10 @@ class espresso(Calculator):
         return (origin,cell,data)
 
     def xsf_local_ionic_potential(self, xsf):
+        """
+        Writes the local ionic potential from a DFT calculation
+        to an input file for xcrysden.
+        """
         self.run_ppx('vbare.inp',
             inputpp=[['plot_num',2]],
             plot=[['fileout',self.topath(xsf)]],
@@ -1916,6 +2200,10 @@ class espresso(Calculator):
 
 
     def extract_local_dos_at_efermi(self):
+        """
+        Obtains the local DOS at the Fermi level as a numpy array after a DFT calculation.
+        Returns (origin,cell,ldos).
+        """
         p = self.run_ppx('ldosef.inp',
             inputpp=[['plot_num',3]],
             piperead=True, parallel=False)
@@ -1924,6 +2212,10 @@ class espresso(Calculator):
         return (origin,cell,data)
 
     def xsf_local_dos_at_efermi(self, xsf):
+        """
+        Writes the local DOS at the Fermi level from a DFT calculation
+        to an input file for xcrysden.
+        """
         self.run_ppx('ldosef.inp',
             inputpp=[['plot_num',3]],
             plot=[['fileout',self.topath(xsf)]],
@@ -1931,6 +2223,10 @@ class espresso(Calculator):
 
 
     def extract_local_entropy_density(self):
+        """
+        Obtains the local entropy density as a numpy array after a DFT calculation.
+        Returns (origin,cell,density).
+        """
         p = self.run_ppx('lentr.inp',
             inputpp=[['plot_num',4]],
             piperead=True, parallel=False)
@@ -1939,6 +2235,10 @@ class espresso(Calculator):
         return (origin,cell,data)
 
     def xsf_local_entropy_density(self, xsf):
+        """
+        Writes the local entropy density from a DFT calculation
+        to an input file for xcrysden.
+        """
         self.run_ppx('lentr.inp',
             inputpp=[['plot_num',4]],
             plot=[['fileout',self.topath(xsf)]],
@@ -1946,6 +2246,10 @@ class espresso(Calculator):
 
 
     def extract_stm_data(self, bias):
+        """
+        Obtains STM data as a numpy array after a DFT calculation.
+        Returns (origin,cell,stmdata).
+        """
         p = self.run_ppx('stm.inp',
             inputpp=[['plot_num',5],['sample_bias',bias/rydberg]],
             piperead=True, parallel=False)
@@ -1954,6 +2258,10 @@ class espresso(Calculator):
         return (origin,cell,data)
 
     def xsf_stm_data(self, xsf, bias):
+        """
+        Writes STM data from a DFT calculation
+        to an input file for xcrysden.
+        """
         self.run_ppx('stm.inp',
             inputpp=[['plot_num',5],['sample_bias',bias/rydberg]],
             plot=[['fileout',self.topath(xsf)]],
@@ -1961,6 +2269,10 @@ class espresso(Calculator):
 
 
     def extract_magnetization_density(self):
+        """
+        Obtains the magnetization density as a numpy array after a DFT calculation.
+        Returns (origin,cell,density).
+        """
         p = self.run_ppx('magdens.inp',
             inputpp=[['plot_num',6]],
             piperead=True, parallel=False)
@@ -1969,6 +2281,10 @@ class espresso(Calculator):
         return (origin,cell,data)
 
     def xsf_magnetization_density(self, xsf):
+        """
+        Writes the magnetization density from a DFT calculation
+        to an input file for xcrysden.
+        """
         self.run_ppx('magdens.inp',
             inputpp=[['plot_num',6]],
             plot=[['fileout',self.topath(xsf)]],
@@ -1977,6 +2293,10 @@ class espresso(Calculator):
 
     def extract_wavefunction_density(self, band, kpoint=0, spin='up',
         gamma_with_sign=False):
+        """
+        Obtains the amplitude of a given wave function as a numpy array after a DFT calculation.
+        Returns (origin,cell,amplitude).
+        """
         if spin=='up' or spin==1:
             s = 0
         elif spin=='down' or spin==2:
@@ -2012,6 +2332,10 @@ class espresso(Calculator):
 
     def xsf_wavefunction_density(self, xsf, band, kpoint=0, spin='up',
         gamma_with_sign=False):
+        """
+        Writes the amplitude of a given wave function from a DFT calculation
+        to an input file for xcrysden.
+        """
         if spin=='up' or spin==1:
             s = 0
         elif spin=='down' or spin==2:
@@ -2045,6 +2369,10 @@ class espresso(Calculator):
 
 
     def extract_electron_localization_function(self):
+        """
+        Obtains the ELF as a numpy array after a DFT calculation.
+        Returns (origin,cell,elf).
+        """
         p = self.run_ppx('elf.inp',
             inputpp=[['plot_num',8]],
             piperead=True, parallel=False)
@@ -2053,6 +2381,10 @@ class espresso(Calculator):
         return (origin,cell,data)
 
     def xsf_electron_localization_function(self, xsf):
+        """
+        Writes the ELF from a DFT calculation
+        to an input file for xcrysden.
+        """
         self.run_ppx('elf.inp',
             inputpp=[['plot_num',8]],
             plot=[['fileout',self.topath(xsf)]],
@@ -2060,6 +2392,10 @@ class espresso(Calculator):
 
 
     def extract_density_minus_atomic(self):
+        """
+        Obtains the charge density minus atomic charges as a numpy array after a DFT calculation.
+        Returns (origin,cell,density).
+        """
         p = self.run_ppx('dens_wo_atm.inp',
             inputpp=[['plot_num',9]],
             piperead=True, parallel=False)
@@ -2068,6 +2404,10 @@ class espresso(Calculator):
         return (origin,cell,data)
 
     def xsf_density_minus_atomic(self, xsf):
+        """
+        Writes the charge density minus atomic charges from a DFT calculation
+        to an input file for xcrysden.
+        """
         self.run_ppx('dens_wo_atm.inp',
             inputpp=[['plot_num',9]],
             plot=[['fileout',self.topath(xsf)]],
@@ -2075,6 +2415,10 @@ class espresso(Calculator):
 
 
     def extract_int_local_dos(self, spin='both', emin=None, emax=None):
+        """
+        Obtains the integrated ldos as a numpy array after a DFT calculation.
+        Returns (origin,cell,ldos).
+        """
         if spin=='both' or spin==0:
             s = 0
         elif spin=='up' or spin==1:
@@ -2099,6 +2443,10 @@ class espresso(Calculator):
         return (origin,cell,data)
 
     def xsf_int_local_dos(self, xsf, spin='both', emin=None, emax=None):
+        """
+        Writes the integrated ldos from a DFT calculation
+        to an input file for xcrysden.
+        """
         if spin=='both' or spin==0:
             s = 0
         elif spin=='up' or spin==1:
@@ -2122,6 +2470,10 @@ class espresso(Calculator):
 
 
     def extract_ionic_and_hartree_potential(self):
+        """
+        Obtains the sum of ionic and Hartree potential as a numpy array after a DFT calculation.
+        Returns (origin,cell,potential).
+        """
         p = self.run_ppx('potih.inp',
             inputpp=[['plot_num',11]],
             piperead=True, parallel=False)
@@ -2130,6 +2482,10 @@ class espresso(Calculator):
         return (origin,cell,data)
 
     def xsf_ionic_and_hartree_potential(self, xsf):
+        """
+        Writes the sum of ionic and Hartree potential from a DFT calculation
+        to an input file for xcrysden.
+        """
         self.run_ppx('potih.inp',
             inputpp=[['plot_num',11]],
             plot=[['fileout',self.topath(xsf)]],
@@ -2137,6 +2493,10 @@ class espresso(Calculator):
 
 
     def extract_sawtooth_potential(self):
+        """
+        Obtains the saw tooth potential as a numpy array after a DFT calculation.
+        Returns (origin,cell,potential).
+        """
         p = self.run_ppx('sawtooth.inp',
             inputpp=[['plot_num',12]],
             piperead=True, parallel=False)
@@ -2145,6 +2505,10 @@ class espresso(Calculator):
         return (origin,cell,data)
 
     def xsf_sawtooth_potential(self, xsf):
+        """
+        Writes the saw tooth potential from a DFT calculation
+        to an input file for xcrysden.
+        """
         self.run_ppx('sawtooth.inp',
             inputpp=[['plot_num',12]],
             plot=[['fileout',self.topath(xsf)]],
@@ -2152,6 +2516,10 @@ class espresso(Calculator):
 
 
     def extract_noncollinear_magnetization(self, spin='all'):
+        """
+        Obtains the non-collinear magnetization as a numpy array after a DFT calculation.
+        Returns (origin,cell,magnetization).
+        """
         if spin=='all' or spin=='charge' or spin==0:
             s = 0
         elif spin=='x':
@@ -2170,6 +2538,10 @@ class espresso(Calculator):
         return (origin,cell,data)
 
     def xsf_noncollinear_magnetization(self, xsf, spin='all'):
+        """
+        Writes the non-collinear magnetization as from a DFT calculation
+        to an input file for xcrysden.
+        """
         if spin=='all' or spin=='charge' or spin==0:
             s = 0
         elif spin=='x':
@@ -2187,6 +2559,10 @@ class espresso(Calculator):
 
 
     def extract_ae_charge_density(self, spin='both'):
+        """
+        Obtains the all-electron (PAW) charge density as a numpy array after a DFT calculation.
+        Returns (origin,cell,density)
+        """
         if spin=='both' or spin==0:
             s = 0
         elif spin=='up' or spin==1:
@@ -2204,6 +2580,10 @@ class espresso(Calculator):
         return (origin,cell,data)
 
     def xsf_ae_charge_density(self, xsf, spin='both'):
+        """
+        Writes the all-electron (PAW) charge density from a DFT calculation
+        to an input file for xcrysden.
+        """
         if spin=='both' or spin==0:
             s = 0
         elif spin=='up' or spin==1:
@@ -2220,6 +2600,10 @@ class espresso(Calculator):
 
 
     def extract_noncollinear_xcmag(self):
+        """
+        Obtains the xc magnetic field for a non-collinear system as a numpy array after a DFT calculation.
+        Returns (origin,cell,field).
+        """
         p = self.run_ppx('ncxcmag.inp',
             inputpp=[['plot_num',18]],
             piperead=True, parallel=False)
@@ -2228,6 +2612,10 @@ class espresso(Calculator):
         return (origin,cell,data)
 
     def xsf_noncollinear_xcmag(self, xsf):
+        """
+        Writes the xc magnetic field for a non-collinear system from a DFT calculation
+        to an input file for xcrysden.
+        """
         self.run_ppx('ncxcmag.inp',
             inputpp=[['plot_num',18]],
             plot=[['fileout',self.topath(xsf)]],
@@ -2235,6 +2623,10 @@ class espresso(Calculator):
 
 
     def extract_reduced_density_gradient(self):
+        """
+        Obtains the reduced density gradient as a numpy array after a DFT calculation.
+        Returns (origin,cell,gradient).
+        """
         p = self.run_ppx('redgrad.inp',
             inputpp=[['plot_num',19]],
             piperead=True, parallel=False)
@@ -2243,6 +2635,10 @@ class espresso(Calculator):
         return (origin,cell,data)
 
     def xsf_reduced_density_gradient(self, xsf):
+        """
+        Writes the reduced density gradient from a DFT calculation
+        to an input file for xcrysden.
+        """
         self.run_ppx('redgrad.inp',
             inputpp=[['plot_num',19]],
             plot=[['fileout',self.topath(xsf)]],
@@ -2250,6 +2646,10 @@ class espresso(Calculator):
 
 
     def extract_middle_density_hessian_eig(self):
+        """
+        Obtains the middle Hessian eigenvalue as a numpy array after a DFT calculation.
+        Returns (origin,cell,density).
+        """
         p = self.run_ppx('mideig.inp',
             inputpp=[['plot_num',20]],
             piperead=True, parallel=False)
@@ -2258,6 +2658,10 @@ class espresso(Calculator):
         return (origin,cell,data)
 
     def xsf_middle_density_hessian_eig(self, xsf):
+        """
+        Writes the middle Hessian eigenvalue from a DFT calculation
+        to an input file for xcrysden.
+        """
         self.run_ppx('mideig.inp',
             inputpp=[['plot_num',20]],
             plot=[['fileout',self.topath(xsf)]],
@@ -2287,8 +2691,8 @@ class espresso(Calculator):
         potential of the vacuum (from averaging the output of pp.x num_plot 11 in the z
         direction by default) from the Fermi energy.
         Values used for average.x come from the espresso example for work function for a surface
-        TODO: Implement some sort of tuning for these parameters?
         """
+        #TODO: Implement some sort of tuning for these parameters?
         if pot_filename[0] != '/':
             file = self.sdir + '/' + pot_filename
         else:

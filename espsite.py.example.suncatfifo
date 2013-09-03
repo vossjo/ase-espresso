@@ -52,8 +52,10 @@ class config:
         o = os.popen(self.perProcMpiExec % (workdir, program), 'r')
         return open(workdir+'/ase3inpfifo', 'w+'), o 
 
+    def do_perProcMpiExec_outputonly(self, workdir, program):
+        return os.popen(self.perProcMpiExec % (workdir, program), 'r')
+
     def runonly_perProcMpiExec(self, workdir, program):
-        os.system(self.fifogen%workdir)
         os.system(self.perProcMpiExec % (workdir, program))
 
     def do_perSpecProcMpiExec(self, machinefile, nproc, workdir, program):

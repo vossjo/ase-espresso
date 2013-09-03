@@ -15,12 +15,22 @@ from sys import stderr
 espressos = []
 
 class multiespresso:
+    """
+    Special calculator running multiple espresso calculators in parallel.
+    Useful for e.g. nudged elastic band calculations.
+    """
     def __init__(self,
         ncalc = 1,
         outdirprefix = 'out',
         mtxt = 'multilog.txt',
         **kwargs
         ):
+        """
+        In addition to the parameters of a standard espresso calculator,
+        the number ncalc (default 1) of espresso calculators to be spawned
+        should be specified. outdirprefix (default 'out') and
+        mtxt (default 'multilog.txt') are optional.
+        """
         
         #stop old espresso calculators
         while len(espressos)>0:
