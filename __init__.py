@@ -838,7 +838,10 @@ svn co --username anonymous http://qeforge.qe-forge.org/svn/q-e/branches/espress
         ### &IONS ###
         simpleconstr,otherconstr = convert_constraints(self.atoms)
         
-        self.optdamp = (self.opt_algorithm.upper()=='DAMP')
+        if self.opt_algorithm is None: 
+            self.optdamp = False
+        else:
+            self.optdamp = (self.opt_algorithm.upper()=='DAMP')
         if self.opt_algorithm is not None and self.calcmode not in ('scf','hund'):
             if len(otherconstr)!=0:
                 print >>f, '/\n&IONS\n  ion_dynamics=\'damp\','
