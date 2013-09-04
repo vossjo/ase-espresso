@@ -790,7 +790,7 @@ svn co --username anonymous http://qeforge.qe-forge.org/svn/q-e/branches/espress
                     spec = self.specdict[s]
                     el = spec.s
                     Ji = spec.J
-                    print >>f, '  Hubbard_J('+str(i+1)+')='+num2str(Ji)+','
+                    print >>f, '  Hubbard_J(1,'+str(i+1)+')='+num2str(Ji)+','
             if self.U_alpha is not None:
                 for i,s in enumerate(self.species):
                     spec = self.specdict[s]
