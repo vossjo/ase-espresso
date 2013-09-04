@@ -1104,23 +1104,26 @@ svn co --username anonymous http://qeforge.qe-forge.org/svn/q-e/branches/espress
                 else:
                     a = self.cout.readline()
                     s.write(a)
-                    while a[:11]!='     Forces':
-                        a = self.cout.readline()
-                        s.write(a)
-                        s.flush()
-                    a = self.cout.readline()
-                    s.write(a)
-                    if not hasattr(self, 'forces'):
-                        self.forces = np.empty((self.natoms,3), np.float)
-                    for i in range(self.natoms):
-                        a = self.cout.readline()
-                        while a.find('force')<0:
-                            s.write(a) 
-                            a = self.cout.readline()
-                        s.write(a)
-                        forceinp = a.split()
-                        self.forces[i][:] = [float(x) for x in forceinp[len(forceinp)-3:]]
-                    self.forces *= rydberg_over_bohr
+                    if not self.dontcalcforces:
+			while a[:11]!='     Forces':
+			    a = self.cout.readline()
+			    s.write(a)
+			    s.flush()
+			a = self.cout.readline()
+			s.write(a)
+			if not hasattr(self, 'forces'):
+			    self.forces = np.empty((self.natoms,3), np.float)
+			for i in range(self.natoms):
+			    a = self.cout.readline()
+			    while a.find('force')<0:
+				s.write(a) 
+				a = self.cout.readline()
+			    s.write(a)
+			    forceinp = a.split()
+			    self.forces[i][:] = [float(x) for x in forceinp[len(forceinp)-3:]]
+			self.forces *= rydberg_over_bohr
+                    else:
+                        self.forces = None
             else:
                 self.forces = None
             self.recalculate = False
@@ -1149,7 +1152,7 @@ svn co --username anonymous http://qeforge.qe-forge.org/svn/q-e/branches/espress
                 else:
                     self.energy_zero = self.energy_free
 
-                if self.U_projection_type == 'atomic':
+                if self.U_projection_type == 'atomic' and not self.dontcalcforces:
                         a = f.readline()
                         while a[:11]!='     Forces':
                             a = f.readline()
