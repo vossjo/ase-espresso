@@ -57,7 +57,7 @@ def cleanup(tmp, scratch, removewf, removesave, calc, site):
     else:
         pernodeexec = ''
     if removewf:
-        os.system('rm -r '+scratch+'/*.wfc* 2>/dev/null')
+        os.system('rm -r '+scratch+'/*.wfc* '+scratch+'/*.hub* 2>/dev/null')
     if not removesave:
         os.system('cp -r '+scratch+' '+tmp)
     cdir = os.getcwd()
