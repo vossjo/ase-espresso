@@ -1297,6 +1297,38 @@ svn co --username anonymous http://qeforge.qe-forge.org/svn/q-e/branches/espress
         os.system('tar xzf '+filename+' --directory='+self.scratch)
 
 
+    def save_flev_output(self, filename='calc.tgz'):
+        """
+        Save the contents of calc.save directory + Fermi level
+        & on-site density matrices (if present).
+        """
+        file = self.topath(filename)
+        self.update(self.atoms)
+
+        ef = self.get_fermi_level()
+        f = open(self.scratch+'/calc.save/fermilevel.txt', 'w')
+        print >>f, '%.15e\n#Fermi level in eV' % ef
+        f.close()
+
+        os.system('tar czf '+filename+' --directory='+self.scratch+' calc.save `find . -name "calc.occup*"`')
+
+
+    def load_flev_output(self, filename='calc.tgz'):
+        """
+        Restore the contents of previously saved calc.save directory
+        + Fermi level & on-site density matrices (if present).
+        """
+        self.stop()
+        file = self.topath(filename)
+
+        os.system('tar xzf '+filename+' --directory='+self.scratch)
+
+        self.fermi_input = True
+        f = open(self.scratch+'/calc.save/fermilevel.txt', 'r')
+        self.inputfermilevel = float(f.readline())
+        f.close()
+
+
     def save_chg(self, filename='chg.tgz'):
         """
         Save charge density.
@@ -2709,6 +2741,34 @@ svn co --username anonymous http://qeforge.qe-forge.org/svn/q-e/branches/espress
         fermi_data.close()
 
         return vacuum_energy * rydberg - fermi_energy
+
+
+    def generate_dummy_data(self):
+        """
+        Generate calc.save/data-file.xml, with non-sense electronic dispersion
+        data (1-kpoint and 1 unconverged band), to be able to extract
+        charge-density-only-dependent output data in case only the charge-density
+        was stored.
+        """
+        convsave = self.convergence.copy()
+        occupationssave = self.occupations
+        self.occupations = 'fixed'
+        #avoid espresso performing diagonalization
+        self.convergence = {'maxsteps':-1,
+                            'diag':'cg',
+                            'diago_cg_max_iter':-1,
+                            'energy':1e80}
+        if not hasattr(self, 'natoms'):
+            self.atoms2species()
+            self.natoms = len(self.atoms)
+        self.writeinputfile(filename='nonsense.inp',
+                            mode='nscf', overridekpts=(1,1,1),
+                            overridekptshift=(0,0,0), overridenbands=1,
+                            suppressforcecalc=True)
+        self.run_espressox('pw.x', 'nonsense.inp', 'nonsense.log', parallel=False)
+        self.occupations = occupationssave
+        del self.convergence
+        self.convergence = convsave
 
 
     def get_world(self):
