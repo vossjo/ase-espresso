@@ -1481,7 +1481,7 @@ svn co --username anonymous http://qeforge.qe-forge.org/svn/q-e/branches/espress
         return atoms
 
     def get_potential_energy(self, atoms=None, force_consistent=False):
-        self.update(self.atoms)
+        self.update(atoms)
         if force_consistent:
             return self.energy_free
         else:
