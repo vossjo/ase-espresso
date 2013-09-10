@@ -6,7 +6,7 @@
 # or http://www.gnu.org/copyleft/gpl.txt .
 #****************************************************************************
 
-gitver = 'GITVERSION'
+gitver = '0914718-git'
 import os
 
 try:
@@ -603,8 +603,10 @@ svn co --username anonymous http://qeforge.qe-forge.org/svn/q-e/branches/espress
                 print >>f, '&CONTROL\n  calculation=\'scf\',\n  prefix=\'calc\','
             else:
                 print >>f, '&CONTROL\n  calculation=\''+self.calcmode+'\',\n  prefix=\'calc\','
+            ionssec = self.calcmode not in ('scf','nscf','bands','hund')
         else:
-                print >>f, '&CONTROL\n  calculation=\''+mode+'\',\n  prefix=\'calc\','
+            print >>f, '&CONTROL\n  calculation=\''+mode+'\',\n  prefix=\'calc\','
+            ionssec = mode not in ('scf','nscf','bands','hund')
 
         print >>f, '  pseudo_dir=\''+self.psppath+'\','
         print >>f, '  outdir=\'.\','
@@ -836,13 +838,16 @@ svn co --username anonymous http://qeforge.qe-forge.org/svn/q-e/branches/espress
             print >>f, '  startingwfc=\''+self.startingwfc+'\','
 
         ### &IONS ###
-        simpleconstr,otherconstr = convert_constraints(self.atoms)
-        
+        if self.opt_algorithm=='ase3' or not ionssec:
+            simpleconstr,otherconstr = [],[]
+        else:
+            simpleconstr,otherconstr = convert_constraints(self.atoms)
+
         if self.opt_algorithm is None: 
             self.optdamp = False
         else:
             self.optdamp = (self.opt_algorithm.upper()=='DAMP')
-        if self.opt_algorithm is not None and self.calcmode not in ('scf','hund'):
+        if self.opt_algorithm is not None and ionssec:
             if len(otherconstr)!=0:
                 print >>f, '/\n&IONS\n  ion_dynamics=\'damp\','
                 self.optdamp = True
@@ -944,7 +949,7 @@ svn co --username anonymous http://qeforge.qe-forge.org/svn/q-e/branches/espress
         x = atoms.positions-self.atoms.positions
         if np.max(x)>1E-13 or np.min(x)<-1E-13 or (not self.started and not self.got_energy) or self.recalculate:
             self.recalculate = True
-            if self.opt_algorithm!='ase3':
+            if self.opt_algorithm!='ase3' or self.calcmode in ('scf','nscf'):
                 self.stop()
             self.read(atoms)
         elif self.only_init:
