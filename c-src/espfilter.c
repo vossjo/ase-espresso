@@ -19,7 +19,7 @@ void dump(char *b, size_t r)
 {
     size_t i;
     
-    for(i=0; i+1024<r; i+=1024)
+    for(i=0; i+1023<r; i+=1024)
 	fwrite(b+i, 1, 1024, stdout);
     i = r%1024;
     if(i) fwrite(b+r-i, 1, i, stdout);
