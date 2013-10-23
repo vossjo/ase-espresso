@@ -1536,6 +1536,7 @@ svn co --username anonymous http://qeforge.qe-forge.org/svn/q-e/branches/espress
         # converting to Voigt notation as expected by ASE
         stress = np.array([stress[0, 0], stress[1, 1], stress[2, 2],
                            stress[1, 2], stress[0, 2], stress[0, 1]])
+        return stress
 
 
     def checkerror(self):
