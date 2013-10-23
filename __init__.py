@@ -963,9 +963,6 @@ svn co --username anonymous http://qeforge.qe-forge.org/svn/q-e/branches/espress
     def get_version(self):
         return '0.1'
 
-    def get_stress(self, atoms):
-        raise NotImplementedError, 'stress interface not implemented\ntry using QE\'s internal relaxation routines instead'
-
     def init_only(self, atoms):
         if self.atoms is None:
             self.set_atoms(atoms)
