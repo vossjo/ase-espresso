@@ -1531,6 +1531,16 @@ svn co --username anonymous http://qeforge.qe-forge.org/svn/q-e/branches/espress
         return stress * rydberg/bohr**3
 
 
+    def get_stress(self, dummyself=None):
+        """ returns stress tensor in Voigt notation """
+        # ASE convention for the stress tensor appears to differ
+        # from the PWscf one by a factor of -1
+        stress = -1.0 * self.get_final_stress()
+        # converting to Voigt notation as expected by ASE
+        stress = np.array([stress[0, 0], stress[1, 1], stress[2, 2],
+                           stress[1, 2], stress[0, 2], stress[0, 1]])
+
+
     def checkerror(self):
         p = os.popen('grep -n Giannozzi '+self.log+' | tail -1','r')
         try:
