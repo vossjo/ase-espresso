@@ -1078,6 +1078,7 @@ svn co --username anonymous http://qeforge.qe-forge.org/svn/q-e/branches/espress
                     self.ST = -float(a.split()[-2])*rydberg
                     self.energy_zero = self.energy_free + 0.5*self.ST
                 else:
+                    self.ST = 0.0
                     self.energy_zero = self.energy_free
             else:
                 self.energy_free = None
@@ -1152,6 +1153,7 @@ svn co --username anonymous http://qeforge.qe-forge.org/svn/q-e/branches/espress
                     self.ST = -float(a.split()[-2])*rydberg
                     self.energy_zero = self.energy_free + 0.5*self.ST
                 else:
+                    self.ST = 0.0
                     self.energy_zero = self.energy_free
 
                 if self.U_projection_type == 'atomic' and not self.dontcalcforces:
@@ -1566,6 +1568,8 @@ svn co --username anonymous http://qeforge.qe-forge.org/svn/q-e/branches/espress
             absmag = float(s2_.split("Bohr")[0])
             return(totmag, absmag)
 
+    def get_smearing_contribution(self):
+        return self.ST
 
     def checkerror(self):
         p = os.popen('grep -n Giannozzi '+self.log+' | tail -1','r')
