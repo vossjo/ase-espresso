@@ -1541,6 +1541,22 @@ svn co --username anonymous http://qeforge.qe-forge.org/svn/q-e/branches/espress
         else:
             raise NotImplementedError
 
+    def get_total_magnetization(self):
+        """
+        Returns total magnetization after SCF run.
+        Units are Bohr magnetons per unit cell, directly read PWscf log.
+        Returns 0.0 if no magnetization is found in log.
+        """
+        p = os.popen('grep "total magnetization" '+self.log+' | tail -1','r')
+        s = p.readlines()
+        p.close()
+
+        if len(s) == 0:
+            return 0.0
+        else:
+            assert len(s) == 1
+            s1 = s[0].split("=")[-1]
+            return float(s1.split("Bohr")[0])
 
     def checkerror(self):
         p = os.popen('grep -n Giannozzi '+self.log+' | tail -1','r')
