@@ -771,9 +771,9 @@ svn co --username anonymous http://qeforge.qe-forge.org/svn/q-e/branches/espress
                 eamp = self.field['eamp']
             else:
                 eamp = 0.0
-            print >>f, '  emaxpos2='+num2str(emaxpos)+','
-            print >>f, '  eopreg2='+num2str(eopreg)+','
-            print >>f, '  eamp2='+num2str(eamp)+','
+            print >>f, '  emaxpos='+num2str(emaxpos)+','
+            print >>f, '  eopreg='+num2str(eopreg)+','
+            print >>f, '  eamp='+num2str(eamp)+','
         if self.U is not None or self.J is not None or self.U_alpha is not None:
             print >>f, '  lda_plus_u=.true.,'
             if self.J is not None:
