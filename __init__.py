@@ -1850,10 +1850,11 @@ svn co --username anonymous http://qeforge.qe-forge.org/svn/q-e/branches/espress
         dos = np.loadtxt(self.scratch+'/calc.pdos_tot')
         if len(dos[0])>3:
             nspin = 2
+            self.dos_total = [dos[:,1],dos[:,2]]
         else:
             nspin = 1
+            self.dos_total = dos[:,1]
         self.dos_energies = dos[:,0] - efermi
-        self.dos_total = dos[:,1]
         npoints = len(self.dos_energies)
         
         channels = {'s':0, 'p':1, 'd':2, 'f':3}
