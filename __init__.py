@@ -2822,17 +2822,27 @@ svn co --username anonymous http://qeforge.qe-forge.org/svn/q-e/branches/espress
         return world(site.nprocs)
 
 
-    def get_number_of_scf_steps(self):
-        """Get latest number of steps for convered scf."""
-        p = os.popen('grep "convergence has been achieved in" '+self.log+' | tail -1', 'r')
+    def get_number_of_scf_steps(self, all=False):
+        """Get number of steps for convered scf. Returns an array.
+        Option 'all' gives all numbers of steps in log,
+        not only for the latest scf."""
+        if all:
+            tail = 'tail'
+        else:
+            tail = 'tail -1'
+        p = os.popen('grep "convergence has been achieved in" '+log+' | '+tail, 'r')
         s = p.readlines()
         p.close()
-        assert len(s) < 2
+        if not all:
+            assert len(s) < 2
         if len(s) == 0:
             return None
         else:
-            tmp = s[0].split('in')
-            return int(tmp[-1].split('iterations')[0])
+            out = []
+            for s_ in s:
+                tmp = s_.split('in')
+                out.append(int(tmp[-1].split('iterations')[0]))
+            return out
 
 
     def get_number_of_bfgs_steps(self):
