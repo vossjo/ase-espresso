@@ -2830,7 +2830,7 @@ svn co --username anonymous http://qeforge.qe-forge.org/svn/q-e/branches/espress
             tail = 'tail'
         else:
             tail = 'tail -1'
-        p = os.popen('grep "convergence has been achieved in" '+log+' | '+tail, 'r')
+        p = os.popen('grep "convergence has been achieved in" '+self.log+' | '+tail, 'r')
         s = p.readlines()
         p.close()
         if not all:
