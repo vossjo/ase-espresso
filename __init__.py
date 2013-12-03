@@ -2822,6 +2822,19 @@ svn co --username anonymous http://qeforge.qe-forge.org/svn/q-e/branches/espress
         return world(site.nprocs)
 
 
+    def get_number_of_scf_steps(self):
+        """Get latest number of steps for convered scf."""
+        p = os.popen('grep "convergence has been achieved in" '+self.log+' | tail -1', 'r')
+        s = p.readlines()
+        p.close()
+        assert len(s) < 2
+        if len(s) == 0:
+            return None
+        else:
+            tmp = s[0].split('in')
+            return int(tmp[-1].split('iterations')[0])
+
+
     def get_number_of_bfgs_steps(self):
         """Get total number of internal BFGS steps."""
         p = os.popen('grep "bfgs converged in" '+self.log+' | tail -1', 'r')
