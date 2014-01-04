@@ -115,7 +115,7 @@ class espresso(Calculator):
         number of bands, if negative: -n extra bands
      kpts ( (1,1,1) )
         k-point grid sub-divisions, k-point grid density,
-        or explicit list of k-points
+        explicit list of k-points, or simply 'gamma' for gamma-point only.
      kptshift ( (0,0,0) )
         shift of k-point grid
      mode ( 'ase3' )
@@ -269,9 +269,12 @@ svn co --username anonymous http://qeforge.qe-forge.org/svn/q-e/branches/espress
         self.nbands = nbands
         if type(kpts)==float or type(kpts)==int:
             from ase.calculators.calculator import kptdensity2monkhorstpack
-            self.kpts = kptdensity2monkhorstpack(atoms, kpts)
+            kpts = kptdensity2monkhorstpack(atoms, kpts)
+        elif isinstance(kpts, StringType):
+            assert kpts == 'gamma'
         else:
-            self.kpts = kpts
+            assert len(kpts) == 3            
+        self.kpts = kpts
         self.kptshift = kptshift
         self.calcmode = mode
         self.opt_algorithm = opt_algorithm
@@ -903,24 +906,27 @@ svn co --username anonymous http://qeforge.qe-forge.org/svn/q-e/branches/espress
             kp = self.kpts
         else:
             kp = overridekpts
-        x = np.shape(kp)
-        if len(x)==1:
-            print >>f, 'K_POINTS automatic'
-            print >>f, kp[0], kp[1], kp[2],
-            if overridekptshift is None:
-                print >>f, self.kptshift[0],self.kptshift[1],self.kptshift[2]
-            else:
-                print >>f, overridekptshift[0],overridekptshift[1],overridekptshift[2]
+        if kp == 'gamma':
+            print >>f, 'K_POINTS Gamma'
         else:
-            print >>f, 'K_POINTS crystal'
-            print >>f, x[0]
-            w = 1./x[0]
-            for k in kp:
-                if len(k)==3:
-                    print >>f, '%24.15e %24.15e %24.15e %24.15e' % (k[0],k[1],k[2],w)
+            x = np.shape(kp)
+            if len(x)==1:
+                print >>f, 'K_POINTS automatic'
+                print >>f, kp[0], kp[1], kp[2],
+                if overridekptshift is None:
+                    print >>f, self.kptshift[0],self.kptshift[1],self.kptshift[2]
                 else:
-                    print >>f, '%24.15e %24.15e %24.15e %24.15e' % (k[0],k[1],k[2],k[3])
-                
+                    print >>f, overridekptshift[0],overridekptshift[1],overridekptshift[2]
+            else:
+                print >>f, 'K_POINTS crystal'
+                print >>f, x[0]
+                w = 1./x[0]
+                for k in kp:
+                    if len(k)==3:
+                        print >>f, '%24.15e %24.15e %24.15e %24.15e' % (k[0],k[1],k[2],w)
+                    else:
+                        print >>f, '%24.15e %24.15e %24.15e %24.15e' % (k[0],k[1],k[2],k[3])
+
         ### closing PWscf input file ###
         f.close()
         if self.verbose == 'high':
