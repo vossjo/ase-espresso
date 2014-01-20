@@ -6,7 +6,7 @@
 # or http://www.gnu.org/copyleft/gpl.txt .
 #****************************************************************************
 
-gitver = '0914718-git'
+gitver = 'GITVERSION'
 import os
 
 try:
@@ -936,14 +936,21 @@ svn co --username anonymous http://qeforge.qe-forge.org/svn/q-e/branches/espress
         if self.atoms is None or not self.started:
             self.atoms = atoms.copy()
         else:
-            msg = 'stop calculator before assigning new atoms to it by using calc.stop()'
             if len(atoms)!=len(self.atoms):
-                raise ValueError, msg
-            
+                self.stop()
+                self.nvalence = None
+                self.nel = None
+                self.recalculate = True
+
             x = atoms.cell-self.atoms.cell
-            if np.max(x)>1E-13 or np.min(x)<-1E-13 or \
-                (atoms.get_atomic_numbers()!=self.atoms.get_atomic_numbers()).any():
-                raise ValueError, msg
+            if np.max(x)>1E-13 or np.min(x)<-1E-13:
+                self.stop()
+                self.recalculate = True
+            if (atoms.get_atomic_numbers()!=self.atoms.get_atomic_numbers()).any():
+                self.stop()
+                self.nvalence = None
+                self.nel = None
+                self.recalculate = True
             x = atoms.positions-self.atoms.positions
             if np.max(x)>1E-13 or np.min(x)<-1E-13 or (not self.started and not self.got_energy):
                 self.recalculate = True
@@ -952,10 +959,15 @@ svn co --username anonymous http://qeforge.qe-forge.org/svn/q-e/branches/espress
     def update(self, atoms):
         if self.atoms is None:
             self.set_atoms(atoms)
+        x = atoms.cell-self.atoms.cell
+        morethanposchange = np.max(x)>1E-13 or np.min(x)<-1E-13 or len(atoms)!=len(self.atoms) \
+            or (atoms.get_atomic_numbers()!=self.atoms.get_atomic_numbers()).any()
         x = atoms.positions-self.atoms.positions
-        if np.max(x)>1E-13 or np.min(x)<-1E-13 or (not self.started and not self.got_energy) or self.recalculate:
+        if np.max(x)>1E-13 or np.min(x)<-1E-13 or morethanposchange \
+            or (not self.started and not self.got_energy) or self.recalculate:
             self.recalculate = True
-            if self.opt_algorithm!='ase3' or self.calcmode in ('scf','nscf'):
+            if self.opt_algorithm!='ase3' or self.calcmode in ('scf','nscf') or \
+                morethanposchange:
                 self.stop()
             self.read(atoms)
         elif self.only_init:
