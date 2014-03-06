@@ -260,6 +260,8 @@ svn co --username anonymous http://qeforge.qe-forge.org/svn/q-e/branches/espress
         Parallelization flags for Quantum Espresso.
         E.g. parflags='-npool 2' will distribute k-points (and spin if
         spin-polarized) over two nodes.
+     verbose ('low')
+        Can be 'high' or 'low'
         """
         
         self.outdir= outdir
@@ -610,6 +612,9 @@ svn co --username anonymous http://qeforge.qe-forge.org/svn/q-e/branches/espress
         else:
             print >>f, '&CONTROL\n  calculation=\''+mode+'\',\n  prefix=\'calc\','
             ionssec = mode not in ('scf','nscf','bands','hund')
+
+        if self.verbose!='low':
+            print >>f, '  verbosity=\''+self.verbose+'\','
 
         print >>f, '  pseudo_dir=\''+self.psppath+'\','
         print >>f, '  outdir=\'.\','
@@ -1115,8 +1120,7 @@ svn co --username anonymous http://qeforge.qe-forge.org/svn/q-e/branches/espress
                         a = self.cout.readline()
                         s.write(a)
                         s.flush()
-                    if not hasattr(self, 'forces'):
-                        self.forces = np.empty((self.natoms,3), np.float)
+                    self.forces = np.empty((self.natoms,3), np.float)
                     for i in range(self.natoms):
                         self.cout.readline()
                     for i in range(self.natoms):
@@ -1132,8 +1136,7 @@ svn co --username anonymous http://qeforge.qe-forge.org/svn/q-e/branches/espress
 			    s.flush()
 			a = self.cout.readline()
 			s.write(a)
-			if not hasattr(self, 'forces'):
-			    self.forces = np.empty((self.natoms,3), np.float)
+			self.forces = np.empty((self.natoms,3), np.float)
 			for i in range(self.natoms):
 			    a = self.cout.readline()
 			    while a.find('force')<0:
@@ -1179,8 +1182,7 @@ svn co --username anonymous http://qeforge.qe-forge.org/svn/q-e/branches/espress
                         while a[:11]!='     Forces':
                             a = f.readline()
                         f.readline()
-                        if not hasattr(self, 'forces'):
-                            self.forces = np.empty((self.natoms,3), np.float)
+                        self.forces = np.empty((self.natoms,3), np.float)
                         for i in range(self.natoms):
                             a = f.readline()
                             while a.find('force')<0:
