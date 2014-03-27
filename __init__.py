@@ -69,6 +69,7 @@ class espresso(Calculator):
                  smearing = 'fd',
                  sigma = 0.1,
                  fix_magmom = False,
+                 isolated = None,
                  U = None,
                  J = None,
                  U_alpha = None,
@@ -203,6 +204,15 @@ svn co --username anonymous http://qeforge.qe-forge.org/svn/q-e/branches/espress
         'hund' means Hund's rule for each atom
      fix_magmom (False)
         If True, fix total magnetization to current value.
+     isolated (None)
+        invoke an 'assume_isolated' method for screening long-range interactions
+        across 3D supercells, particularly electrostatics.
+        Very useful for charged molecules and charged surfaces,
+        but also improves convergence wrt. vacuum space for neutral molecules.
+        - 'makov-payne', 'mp': only cubic systems.
+        - 'dcc': don't use.
+        - 'martyna-tuckerman', 'mt': method of choice for molecules, works for any supercell geometry.
+        - 'esm': Effective Screening Medium Method for surfaces and interfaces.
      U (None)
         specify Hubbard U values (in eV)
         U can be list: specify U for each atom
@@ -305,6 +315,7 @@ svn co --username anonymous http://qeforge.qe-forge.org/svn/q-e/branches/espress
         self.noncollinear = noncollinear
         self.spinorbit = spinorbit
         self.fix_magmom = fix_magmom
+        self.isolated = isolated
         if charge is None:
             self.tot_charge = tot_charge
         else:
@@ -730,6 +741,8 @@ svn co --username anonymous http://qeforge.qe-forge.org/svn/q-e/branches/espress
                 assert np.abs(mag) <= 1. # magnetization oversaturated!!!
                 print >>f, '  starting_magnetization(%d)=%s,' % (spcount,num2str(float(mag)))
                 spcount += 1
+        if self.isolated is not None:
+            print >>f, '  assume_isolated=\''+self.isolated+'\','
         print >>f, '  input_dft=\''+self.xc+'\','
         if self.beefensemble:
             print >>f, '  ensemble_energies=.true.,'
