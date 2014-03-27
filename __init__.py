@@ -2054,7 +2054,7 @@ svn co --username anonymous http://qeforge.qe-forge.org/svn/q-e/branches/espress
             p.close()
             kptdirs1.sort()
             p = os.popen("grep eigenval2.xml "+self.scratch+"/calc.save/data-file.xml|tr '\"' ' '|awk '{print $(NF-1)}'", 'r')
-            kptdirs1 = [x.strip() for x in p.readlines()]
+            kptdirs2 = [x.strip() for x in p.readlines()]
             p.close()
             kptdirs2.sort()
             kptdirs = kptdirs1+kptdirs2
