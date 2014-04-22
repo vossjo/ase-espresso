@@ -44,6 +44,7 @@ class espresso(Calculator):
                  kptshift = (0,0,0),
                  mode = 'ase3',
                  opt_algorithm = 'ase3',
+                 nstep = None,
                  constr_tol = None,
                  fmax = 0.05,
                  cell_dynamics = None,
@@ -290,6 +291,7 @@ svn co --username anonymous http://qeforge.qe-forge.org/svn/q-e/branches/espress
         self.kptshift = kptshift
         self.calcmode = mode
         self.opt_algorithm = opt_algorithm
+        self.nstep = nstep
         self.constr_tol = constr_tol
         self.fmax = fmax
         self.cell_dynamics = cell_dynamics
@@ -623,6 +625,9 @@ svn co --username anonymous http://qeforge.qe-forge.org/svn/q-e/branches/espress
         else:
             print >>f, '&CONTROL\n  calculation=\''+mode+'\',\n  prefix=\'calc\','
             ionssec = mode not in ('scf','nscf','bands','hund')
+
+        if self.nstep != None:
+            print >>f, '  nstep='+str(self.nstep)+','
 
         if self.verbose!='low':
             print >>f, '  verbosity=\''+self.verbose+'\','
