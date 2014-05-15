@@ -75,6 +75,13 @@ class espresso(Calculator):
                  J = None,
                  U_alpha = None,
                  U_projection_type = 'atomic',
+                 nqx1 = None,
+                 nqx2 = None,
+                 nqx3 = None,
+                 exx_fraction = None,
+                 screening_parameter = None,
+                 exxdiv_treatment = None,
+                 ecutvcut = None,
                  tot_charge = None, # +1 means 1 e missing, -1 means 1 extra e
                  charge = None, # overrides tot_charge (ase 3.7+ compatibility)
                  tot_magnetization = -1, #-1 means unspecified, 'hund' means Hund's rule for each atom
@@ -98,6 +105,7 @@ class espresso(Calculator):
                  single_calculator = True, #if True, only one espresso job will be running
                  procrange = None, #let this espresso calculator run only on a subset of the requested cpus
                  numcalcs = None,  #used / set by multiespresso class
+                 alwayscreatenewarrayforforces = True,
                  verbose = 'low'):
         """
     Construct an ase-espresso calculator.
@@ -229,6 +237,17 @@ svn co --username anonymous http://qeforge.qe-forge.org/svn/q-e/branches/espress
         can be list or dictionary (see U parameter above)
      U_projection_type ('atomic')
         type of projectors for calculating density matrices in DFT+U schemes
+     nqx1, nqx2, nqx3 (all None)
+        3D mesh for q=k1-k2 sampling of Fock operator. Can be smaller
+        than number of k-points.
+     exx_fraction (None)
+        Default depends on hybrid functional chosen.
+     screening_parameter (0.106)
+        Screening parameter for HSE-like functionals.
+     exxdiv_treatment (gygi-baldereschi)
+        Method to treat Coulomb potential divergence for small q.
+     ecutvcut (0)
+        Cut-off for above.
      dipole ( {'status':False} )
         If 'status':True, turn on dipole correction; then by default, the
         dipole correction is applied along the z-direction, and the dipole is
@@ -339,6 +358,14 @@ svn co --username anonymous http://qeforge.qe-forge.org/svn/q-e/branches/espress
         self.J = J
         self.U_alpha = U_alpha
         self.U_projection_type = U_projection_type
+        self.nqx1 = nqx1
+        self.nqx2 = nqx2
+        self.nqx3 = nqx3
+        self.exx_fraction = exx_fraction
+        self.screening_parameter = screening_parameter
+        self.exxdiv_treatment = exxdiv_treatment
+        self.ecutvcut = ecutvcut
+        self.newforcearray = alwayscreatenewarrayforforces
         if parflags is None:
             self.parflags = ''
         else:
@@ -826,6 +853,22 @@ svn co --username anonymous http://qeforge.qe-forge.org/svn/q-e/branches/espress
                     U_alphai = spec.U_alpha
                     print >>f, '  Hubbard_alpha('+str(i+1)+')='+num2str(U_alphai)+','
         
+        if self.nqx1 is not None:
+            print >>f, '  nqx1=%d,' % self.nqx1
+        if self.nqx2 is not None:
+            print >>f, '  nqx2=%d,' % self.nqx2
+        if self.nqx3 is not None:
+            print >>f, '  nqx3=%d,' % self.nqx3
+        
+        if self.exx_fraction is not None:
+            print >>f, '  exx_fraction='+num2str(self.exx_fraction)+','
+        if self.screening_parameter is not None:
+            print >>f, '  screening_parameter='+num2str(self.screening_parameter)+','
+        if self.exxdiv_treatment is not None:
+            print >>f, '  exxdiv_treatment=\''+self.exxdiv_treatment+'\','
+        if self.ecutvcut is not None:
+            print >>f, '  ecutvcut='+num2str(self.ecutvcut)+','
+        
         if self.nosym:
             print >>f, '  nosym=.true.,'
         if self.noinv:
@@ -1113,11 +1156,19 @@ svn co --username anonymous http://qeforge.qe-forge.org/svn/q-e/branches/espress
                 if self.occupations=='smearing' and self.calcmode!='hund' and self.smearing[0].upper()!='M' and self.smearing[0].upper()!='C' and not self.optdamp:
                     a = self.cout.readline()
                     s.write(a)
+                    exx = False
                     while a[:13]!='     smearing':
                         a = self.cout.readline()
                         s.write(a)
-                    self.ST = -float(a.split()[-2])*rydberg
-                    self.energy_zero = self.energy_free + 0.5*self.ST
+                        if a.find('EXX')>-1:
+                            exx = True
+                            break
+                    if exx:
+                        self.ST = 0.0
+                        self.energy_zero = self.energy_free
+                    else:
+                        self.ST = -float(a.split()[-2])*rydberg
+                        self.energy_zero = self.energy_free + 0.5*self.ST
                 else:
                     self.ST = 0.0
                     self.energy_zero = self.energy_free
@@ -1187,10 +1238,18 @@ svn co --username anonymous http://qeforge.qe-forge.org/svn/q-e/branches/espress
                 # get S*T correction (there is none for Marzari-Vanderbilt=Cold smearing)
                 if self.occupations=='smearing' and self.calcmode!='hund' and self.smearing[0].upper()!='M' and self.smearing[0].upper()!='C' and not self.optdamp:
                     a = f.readline()
+                    exx = False
                     while a[:13]!='     smearing':
                         a = f.readline()
-                    self.ST = -float(a.split()[-2])*rydberg
-                    self.energy_zero = self.energy_free + 0.5*self.ST
+                        if a.find('EXX')>-1:
+                            exx = True
+                            break
+                    if exx:
+                        self.ST = 0.0
+                        self.energy_zero = self.energy_free
+                    else:
+                        self.ST = -float(a.split()[-2])*rydberg
+                        self.energy_zero = self.energy_free + 0.5*self.ST
                 else:
                     self.ST = 0.0
                     self.energy_zero = self.energy_free
@@ -2241,7 +2300,7 @@ svn co --username anonymous http://qeforge.qe-forge.org/svn/q-e/branches/espress
             piperead=True, parallel=False)
         origin,cell,data = self.read_3d_grid(p, 'totalpot.log')
         p.close()
-        return (origin,cell,data)
+        return (origin,cell,data*rydberg)
 
     def xsf_total_potential(self, xsf, spin='both'):
         """
@@ -2273,7 +2332,7 @@ svn co --username anonymous http://qeforge.qe-forge.org/svn/q-e/branches/espress
             piperead=True, parallel=False)
         origin,cell,data = self.read_3d_grid(p, 'vbare.log')
         p.close()
-        return (origin,cell,data)
+        return (origin,cell,data*rydberg)
 
     def xsf_local_ionic_potential(self, xsf):
         """
@@ -2566,7 +2625,7 @@ svn co --username anonymous http://qeforge.qe-forge.org/svn/q-e/branches/espress
             piperead=True, parallel=False)
         origin,cell,data = self.read_3d_grid(p, 'potih.log')
         p.close()
-        return (origin,cell,data)
+        return (origin,cell,data*rydberg)
 
     def xsf_ionic_and_hartree_potential(self, xsf):
         """
@@ -2589,7 +2648,7 @@ svn co --username anonymous http://qeforge.qe-forge.org/svn/q-e/branches/espress
             piperead=True, parallel=False)
         origin,cell,data = self.read_3d_grid(p, 'sawtooth.log')
         p.close()
-        return (origin,cell,data)
+        return (origin,cell,data*rydberg)
 
     def xsf_sawtooth_potential(self, xsf):
         """
@@ -2894,3 +2953,10 @@ svn co --username anonymous http://qeforge.qe-forge.org/svn/q-e/branches/espress
         else:
             tmp = s[0].split('and')
             return int(tmp[-1].split('bfgs')[0])
+
+    def get_forces(self, atoms):
+        self.update(atoms)
+        if self.newforcearray:
+            return self.forces.copy()
+        else:
+            return self.forces
