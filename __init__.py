@@ -1438,7 +1438,7 @@ svn co --username anonymous http://qeforge.qe-forge.org/svn/q-e/branches/espress
         self.update(self.atoms)
         self.stop()
         
-        os.system('tar czf '+filename+' --directory='+self.scratch+' calc.save/charge-density.dat `cd '+self.scratch+';find calc.save -name "spin-polarization.*";find calc.save -name "magnetization.*";find . -name "calc.occup*"`')
+        os.system('tar czf '+filename+' --directory='+self.scratch+' calc.save/charge-density.dat calc.save/data-file.xml `cd '+self.scratch+';find calc.save -name "spin-polarization.*";find calc.save -name "magnetization.*";find . -name "calc.occup*"`')
 
 
     def load_chg(self, filename='chg.tgz'):
@@ -1485,7 +1485,7 @@ svn co --username anonymous http://qeforge.qe-forge.org/svn/q-e/branches/espress
         f = open(self.scratch+'/calc.save/fermilevel.txt', 'w')
         print >>f, '%.15e\n#Fermi level in eV' % ef
         f.close()        
-        os.system('tar czf '+filename+' --directory='+self.scratch+' calc.save/charge-density.dat `cd '+self.scratch+';find calc.save -name "spin-polarization.*";find calc.save -name "magnetization.*";find . -name "calc.occup*"` calc.save/fermilevel.txt')
+        os.system('tar czf '+filename+' --directory='+self.scratch+' calc.save/charge-density.dat calc.save/data-file.xml `cd '+self.scratch+';find calc.save -name "spin-polarization.*";find calc.save -name "magnetization.*";find . -name "calc.occup*"` calc.save/fermilevel.txt')
 
 
     def load_flev_chg(self, filename='efchg.tgz'):
