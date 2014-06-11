@@ -43,6 +43,7 @@ class espresso(Calculator):
                  nbands = -10,
                  kpts = (1,1,1),
                  kptshift = (0,0,0),
+                 fft_grid = None,   #if specified, set the keywrds nr1, nr2, nr3 in q.e. input [RK]
                  mode = 'ase3',
                  opt_algorithm = 'ase3',
                  nstep = None,
@@ -131,6 +132,10 @@ class espresso(Calculator):
         explicit list of k-points, or simply 'gamma' for gamma-point only.
      kptshift ( (0,0,0) )
         shift of k-point grid
+     fft_grid ( None )
+        specify tuple of fft grid points (nr1,nr2,nr3) for q.e.
+        useful for series of calculations with changing cell size (e.g. lattice constant optimization)
+        uses q.e. default if not specified. [RK]
      mode ( 'ase3' )
         relaxation mode:
         - 'ase3': dynamic communication between Quantum Espresso and python
@@ -312,6 +317,7 @@ svn co --username anonymous http://qeforge.qe-forge.org/svn/q-e/branches/espress
             assert len(kpts) == 3
         self.kpts = kpts
         self.kptshift = kptshift
+        self.fft_grid = fft_grid #RK
         self.calcmode = mode
         self.opt_algorithm = opt_algorithm
         self.nstep = nstep
@@ -512,9 +518,9 @@ svn co --username anonymous http://qeforge.qe-forge.org/svn/q-e/branches/espress
             if key == 'xc':
                 self.xc = value
             if key == 'pw':
-                self.pw = num2str(value)
+                self.pw = value
             if key == 'dw':
-                self.dw =num2str(value)
+                self.dw = value
             if key == 'output':
                 self.output = value
             if key == 'convergence':
@@ -523,6 +529,8 @@ svn co --username anonymous http://qeforge.qe-forge.org/svn/q-e/branches/espress
                 self.kpts = value
             if key == 'kshift':
                 self.kshift = value
+            if key == 'fft_grid':   #RK
+                self.fft_grid = value
         self.input_update()
         self.recalculate = True
 
@@ -883,6 +891,10 @@ svn co --username anonymous http://qeforge.qe-forge.org/svn/q-e/branches/espress
             print >>f, '  nosym_evc=.true.,'
         if self.no_t_rev:
             print >>f, '  no_t_rev=.true.,'
+        if self.fft_grid is not None:  #RK
+            print >>f, '  nr1=%d,' % self.fft_grid[0]
+            print >>f, '  nr2=%d,' % self.fft_grid[1]
+            print >>f, '  nr3=%d,' % self.fft_grid[2]
 
         ### &ELECTRONS ###
         print >>f,'/\n&ELECTRONS'
