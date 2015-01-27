@@ -108,7 +108,90 @@ class espresso(Calculator):
                  procrange = None, #let this espresso calculator run only on a subset of the requested cpus
                  numcalcs = None,  #used / set by multiespresso class
                  alwayscreatenewarrayforforces = True,
-                 verbose = 'low'):
+                 verbose = 'low',
+                 #automatically generated list of parameters
+                 #some coincide with ase-style names
+                 iprint = None,
+                 tstress = None,
+                 tprnfor = None,
+                 dt = None,
+                 lkpoint_dir = None,
+                 max_seconds = None,
+                 etot_conv_thr = None,
+                 forc_conv_thr = None,
+                 tefield = None,
+                 dipfield = None,
+                 lelfield = None,
+                 nberrycyc = None,
+                 lorbm = None,
+                 lberry = None,
+                 gdir = None,
+                 nppstr = None,
+                 nbnd = None,
+                 ecutwfc = None,
+                 ecutrho = None,
+                 ecutfock = None,
+                 force_symmorphic = None,
+                 use_all_frac = None,
+                 one_atom_occupations = None,
+                 starting_spin_angle = None,
+                 degauss = None,
+                 nspin = None,
+                 noncolin = None,
+                 ecfixed = None,
+                 qcutz = None,
+                 q2sigma = None,
+                 x_gamma_extrapolation = None,
+                 lda_plus_u = None,
+                 lda_plus_u_kind = None,
+                 edir = None,
+                 emaxpos = None,
+                 eopreg = None,
+                 eamp = None,
+                 clambda = None,
+                 report = None,
+                 lspinorb = None,
+                 esm_w = None,
+                 esm_efield = None,
+                 esm_nfit = None,
+                 london = None,
+                 london_s6 = None,
+                 london_rcut = None,
+                 xdm = None,
+                 xdm_a1 = None,
+                 xdm_a2 = None,
+                 electron_maxstep = None,
+                 scf_must_converge = None,
+                 conv_thr = None,
+                 adaptive_thr = None,
+                 conv_thr_init = None,
+                 conv_thr_multi = None,
+                 mixing_beta = None,
+                 mixing_ndim = None,
+                 mixing_fixed_ns = None,
+                 ortho_para = None,
+                 diago_thr_init = None,
+                 diago_cg_maxiter = None,
+                 diago_david_ndim = None,
+                 diago_full_acc = None,
+                 efield = None,
+                 tqr = None,
+                 remove_rigid_rot = None,
+                 tempw = None,
+                 tolp = None,
+                 delta_t = None,
+                 nraise = None,
+                 refold_pos = None,
+                 upscale = None,
+                 bfgs_ndim = None,
+                 trust_radius_max = None,
+                 trust_radius_min = None,
+                 trust_radius_ini = None,
+                 w_1 = None,
+                 w_2 = None,
+                 wmass = None,
+                 press_conv_thr = None
+                 ):
         """
     Construct an ase-espresso calculator.
     Parameters (with defaults in parentheses):
@@ -391,6 +474,98 @@ svn co --username anonymous http://qeforge.qe-forge.org/svn/q-e/branches/espress
         self.started = False
         self.got_energy = False
         self.only_init = False
+
+        #automatically generated list
+        self.iprint = iprint
+        self.tstress = tstress
+        self.tprnfor = tprnfor
+        self.dt = dt
+        self.lkpoint_dir = lkpoint_dir
+        self.max_seconds = max_seconds
+        self.etot_conv_thr = etot_conv_thr
+        self.forc_conv_thr = forc_conv_thr
+        self.tefield = tefield
+        self.dipfield = dipfield
+        self.lelfield = lelfield
+        self.nberrycyc = nberrycyc
+        self.lorbm = lorbm
+        self.lberry = lberry
+        self.gdir = gdir
+        self.nppstr = nppstr
+        self.nbnd = nbnd
+        self.ecutwfc = ecutwfc
+        self.ecutrho = ecutrho
+        self.ecutfock = ecutfock
+        self.force_symmorphic = force_symmorphic
+        self.use_all_frac = use_all_frac
+        self.one_atom_occupations = one_atom_occupations
+        self.starting_spin_angle = starting_spin_angle
+        self.degauss = degauss
+        self.nspin = nspin
+        self.noncolin = noncolin
+        self.ecfixed = ecfixed
+        self.qcutz = qcutz
+        self.q2sigma = q2sigma
+        self.x_gamma_extrapolation = x_gamma_extrapolation
+        self.lda_plus_u = lda_plus_u
+        self.lda_plus_u_kind = lda_plus_u_kind
+        self.edir = edir
+        self.emaxpos = emaxpos
+        self.eopreg = eopreg
+        self.eamp = eamp
+        self.clambda = clambda
+        self.report = report
+        self.lspinorb = lspinorb
+        self.esm_w = esm_w
+        self.esm_efield = esm_efield
+        self.esm_nfit = esm_nfit
+        self.london = london
+        self.london_s6 = london_s6
+        self.london_rcut = london_rcut
+        self.xdm = xdm
+        self.xdm_a1 = xdm_a1
+        self.xdm_a2 = xdm_a2
+        self.electron_maxstep = electron_maxstep
+        self.scf_must_converge = scf_must_converge
+        self.conv_thr = conv_thr
+        self.adaptive_thr = adaptive_thr
+        self.conv_thr_init = conv_thr_init
+        self.conv_thr_multi = conv_thr_multi
+        self.mixing_beta = mixing_beta
+        self.mixing_ndim = mixing_ndim
+        self.mixing_fixed_ns = mixing_fixed_ns
+        self.ortho_para = ortho_para
+        self.diago_thr_init = diago_thr_init
+        self.diago_cg_maxiter = diago_cg_maxiter
+        self.diago_david_ndim = diago_david_ndim
+        self.diago_full_acc = diago_full_acc
+        self.efield = efield
+        self.tqr = tqr
+        self.remove_rigid_rot = remove_rigid_rot
+        self.tempw = tempw
+        self.tolp = tolp
+        self.delta_t = delta_t
+        self.nraise = nraise
+        self.refold_pos = refold_pos
+        self.upscale = upscale
+        self.bfgs_ndim = bfgs_ndim
+        self.trust_radius_max = trust_radius_max
+        self.trust_radius_min = trust_radius_min
+        self.trust_radius_ini = trust_radius_ini
+        self.w_1 = w_1
+        self.w_2 = w_2
+        self.wmass = wmass
+        self.press_conv_thr = press_conv_thr
+
+
+        #give original espresso style input names
+        #preference over ase / dacapo - style names
+        if ecutwfc is not None:
+            self.pw = ecutwfc
+        if ecutrho is not None:
+            self.dw = ecutwfc
+        if nbnd is not None:
+            self.nbands = nbnd
 
         # Variables that cannot be set by inputs
         self.nvalence=None
@@ -705,6 +880,41 @@ svn co --username anonymous http://qeforge.qe-forge.org/svn/q-e/branches/espress
             if site.fifo:
                 print >>f, '  ase_fifo=.true.,'
 
+# automatically generated parameters
+        if self.iprint is not None:
+            print >>f, '  iprint='+str(self.iprint)
+        if self.tstress is not None:
+            print >>f, '  tstress='+bool2str(self.tstress)
+        if self.tprnfor is not None:
+            print >>f, '  tprnfor='+bool2str(self.tprnfor)
+        if self.dt is not None:
+            print >>f, '  dt='+num2str(self.dt)
+        if self.lkpoint_dir is not None:
+            print >>f, '  lkpoint_dir='+bool2str(self.lkpoint_dir)
+        if self.max_seconds is not None:
+            print >>f, '  max_seconds='+num2str(self.max_seconds)
+        if self.etot_conv_thr is not None:
+            print >>f, '  etot_conv_thr='+num2str(self.etot_conv_thr)
+        if self.forc_conv_thr is not None:
+            print >>f, '  forc_conv_thr='+num2str(self.forc_conv_thr)
+        if self.tefield is not None:
+            print >>f, '  tefield='+bool2str(self.tefield)
+        if self.dipfield is not None:
+            print >>f, '  dipfield='+bool2str(self.dipfield)
+        if self.lelfield is not None:
+            print >>f, '  lelfield='+bool2str(self.lelfield)
+        if self.nberrycyc is not None:
+            print >>f, '  nberrycyc='+str(self.nberrycyc)
+        if self.lorbm is not None:
+            print >>f, '  lorbm='+bool2str(self.lorbm)
+        if self.lberry is not None:
+            print >>f, '  lberry='+bool2str(self.lberry)
+        if self.gdir is not None:
+            print >>f, '  gdir='+str(self.gdir)
+        if self.nppstr is not None:
+            print >>f, '  nppstr='+str(self.nppstr)
+
+
         ### &SYSTEM ###
         print >>f, '/\n&SYSTEM\n  ibrav=0,\n  celldm(1)=1.8897261245650618d0,'
         print >>f, '  nat='+str(self.natoms)+','
@@ -896,6 +1106,69 @@ svn co --username anonymous http://qeforge.qe-forge.org/svn/q-e/branches/espress
             print >>f, '  nr2=%d,' % self.fft_grid[1]
             print >>f, '  nr3=%d,' % self.fft_grid[2]
 
+# automatically generated parameters
+        if self.ecutfock is not None:
+            print >>f, '  ecutfock='+num2str(self.ecutfock)
+        if self.force_symmorphic is not None:
+            print >>f, '  force_symmorphic='+bool2str(self.force_symmorphic)
+        if self.use_all_frac is not None:
+            print >>f, '  use_all_frac='+bool2str(self.use_all_frac)
+        if self.one_atom_occupations is not None:
+            print >>f, '  one_atom_occupations='+bool2str(self.one_atom_occupations)
+        if self.starting_spin_angle is not None:
+            print >>f, '  starting_spin_angle='+bool2str(self.starting_spin_angle)
+        if self.degauss is not None:
+            print >>f, '  degauss='+num2str(self.degauss)
+        if self.nspin is not None:
+            print >>f, '  nspin='+str(self.nspin)
+        if self.noncolin is not None:
+            print >>f, '  noncolin='+bool2str(self.noncolin)
+        if self.ecfixed is not None:
+            print >>f, '  ecfixed='+num2str(self.ecfixed)
+        if self.qcutz is not None:
+            print >>f, '  qcutz='+num2str(self.qcutz)
+        if self.q2sigma is not None:
+            print >>f, '  q2sigma='+num2str(self.q2sigma)
+        if self.x_gamma_extrapolation is not None:
+            print >>f, '  x_gamma_extrapolation='+bool2str(self.x_gamma_extrapolation)
+        if self.lda_plus_u is not None:
+            print >>f, '  lda_plus_u='+bool2str(self.lda_plus_u)
+        if self.lda_plus_u_kind is not None:
+            print >>f, '  lda_plus_u_kind='+str(self.lda_plus_u_kind)
+        if self.edir is not None:
+            print >>f, '  edir='+str(self.edir)
+        if self.emaxpos is not None:
+            print >>f, '  emaxpos='+num2str(self.emaxpos)
+        if self.eopreg is not None:
+            print >>f, '  eopreg='+num2str(self.eopreg)
+        if self.eamp is not None:
+            print >>f, '  eamp='+num2str(self.eamp)
+        if self.clambda is not None:
+            print >>f, '  lambda='+num2str(self.clambda)
+        if self.report is not None:
+            print >>f, '  report='+str(self.report)
+        if self.lspinorb is not None:
+            print >>f, '  lspinorb='+bool2str(self.lspinorb)
+        if self.esm_w is not None:
+            print >>f, '  esm_w='+num2str(self.esm_w)
+        if self.esm_efield is not None:
+            print >>f, '  esm_efield='+num2str(self.esm_efield)
+        if self.esm_nfit is not None:
+            print >>f, '  esm_nfit='+str(self.esm_nfit)
+        if self.london is not None:
+            print >>f, '  london='+bool2str(self.london)
+        if self.london_s6 is not None:
+            print >>f, '  london_s6='+num2str(self.london_s6)
+        if self.london_rcut is not None:
+            print >>f, '  london_rcut='+num2str(self.london_rcut)
+        if self.xdm is not None:
+            print >>f, '  xdm='+bool2str(self.xdm)
+        if self.xdm_a1 is not None:
+            print >>f, '  xdm_a1='+num2str(self.xdm_a1)
+        if self.xdm_a2 is not None:
+            print >>f, '  xdm_a2='+num2str(self.xdm_a2)
+
+
         ### &ELECTRONS ###
         print >>f,'/\n&ELECTRONS'
         try:
@@ -924,6 +1197,42 @@ svn co --username anonymous http://qeforge.qe-forge.org/svn/q-e/branches/espress
         if self.startingwfc is not None and self.calcmode!='hund':
             print >>f, '  startingwfc=\''+self.startingwfc+'\','
 
+# automatically generated parameters
+        if self.electron_maxstep is not None:
+            print >>f, '  electron_maxstep='+str(self.electron_maxstep)
+        if self.scf_must_converge is not None:
+            print >>f, '  scf_must_converge='+bool2str(self.scf_must_converge)
+        if self.conv_thr is not None:
+            print >>f, '  conv_thr='+num2str(self.conv_thr)
+        if self.adaptive_thr is not None:
+            print >>f, '  adaptive_thr='+bool2str(self.adaptive_thr)
+        if self.conv_thr_init is not None:
+            print >>f, '  conv_thr_init='+num2str(self.conv_thr_init)
+        if self.conv_thr_multi is not None:
+            print >>f, '  conv_thr_multi='+num2str(self.conv_thr_multi)
+        if self.mixing_beta is not None:
+            print >>f, '  mixing_beta='+num2str(self.mixing_beta)
+        if self.mixing_ndim is not None:
+            print >>f, '  mixing_ndim='+str(self.mixing_ndim)
+        if self.mixing_fixed_ns is not None:
+            print >>f, '  mixing_fixed_ns='+str(self.mixing_fixed_ns)
+        if self.ortho_para is not None:
+            print >>f, '  ortho_para='+str(self.ortho_para)
+        if self.diago_thr_init is not None:
+            print >>f, '  diago_thr_init='+num2str(self.diago_thr_init)
+        if self.diago_cg_maxiter is not None:
+            print >>f, '  diago_cg_maxiter='+str(self.diago_cg_maxiter)
+        if self.diago_david_ndim is not None:
+            print >>f, '  diago_david_ndim='+str(self.diago_david_ndim)
+        if self.diago_full_acc is not None:
+            print >>f, '  diago_full_acc='+bool2str(self.diago_full_acc)
+        if self.efield is not None:
+            print >>f, '  efield='+num2str(self.efield)
+        if self.tqr is not None:
+            print >>f, '  tqr='+bool2str(self.tqr)
+
+
+
         ### &IONS ###
         if self.opt_algorithm=='ase3' or not ionssec:
             simpleconstr,otherconstr = [],[]
@@ -947,6 +1256,35 @@ svn co --username anonymous http://qeforge.qe-forge.org/svn/q-e/branches/espress
         elif self.ion_positions is not None:
             print >>f, '/\n&IONS\n  ion_positions=\''+self.ion_positions+'\','
 
+# automatically generated parameters
+        if self.remove_rigid_rot is not None:
+            print >>f, '  remove_rigid_rot='+bool2str(self.remove_rigid_rot)
+        if self.tempw is not None:
+            print >>f, '  tempw='+num2str(self.tempw)
+        if self.tolp is not None:
+            print >>f, '  tolp='+num2str(self.tolp)
+        if self.delta_t is not None:
+            print >>f, '  delta_t='+num2str(self.delta_t)
+        if self.nraise is not None:
+            print >>f, '  nraise='+str(self.nraise)
+        if self.refold_pos is not None:
+            print >>f, '  refold_pos='+bool2str(self.refold_pos)
+        if self.upscale is not None:
+            print >>f, '  upscale='+num2str(self.upscale)
+        if self.bfgs_ndim is not None:
+            print >>f, '  bfgs_ndim='+str(self.bfgs_ndim)
+        if self.trust_radius_max is not None:
+            print >>f, '  trust_radius_max='+num2str(self.trust_radius_max)
+        if self.trust_radius_min is not None:
+            print >>f, '  trust_radius_min='+num2str(self.trust_radius_min)
+        if self.trust_radius_ini is not None:
+            print >>f, '  trust_radius_ini='+num2str(self.trust_radius_ini)
+        if self.w_1 is not None:
+            print >>f, '  w_1='+num2str(self.w_1)
+        if self.w_2 is not None:
+            print >>f, '  w_2='+num2str(self.w_2)
+
+
         ### &CELL ###
         if self.cell_dynamics is not None:
             print >>f, '/\n&CELL\n  cell_dynamics=\''+self.cell_dynamics+'\','
@@ -958,6 +1296,13 @@ svn co --username anonymous http://qeforge.qe-forge.org/svn/q-e/branches/espress
                 print >>f, '  cell_factor='+num2str(self.cell_factor)+','
             if self.cell_dofree is not None:
                 print >>f, '  cell_dofree=\''+self.cell_dofree+'\','
+
+# automatically generated parameters
+        if self.wmass is not None:
+            print >>f, '  wmass='+num2str(self.wmass)
+        if self.press_conv_thr is not None:
+            print >>f, '  press_conv_thr='+num2str(self.press_conv_thr)
+
 
         ### CELL_PARAMETERS
         print >>f, '/\nCELL_PARAMETERS'
