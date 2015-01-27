@@ -882,37 +882,37 @@ svn co --username anonymous http://qeforge.qe-forge.org/svn/q-e/branches/espress
 
 # automatically generated parameters
         if self.iprint is not None:
-            print >>f, '  iprint='+str(self.iprint)
+            print >>f, '  iprint='+str(self.iprint)+','
         if self.tstress is not None:
-            print >>f, '  tstress='+bool2str(self.tstress)
+            print >>f, '  tstress='+bool2str(self.tstress)+','
         if self.tprnfor is not None:
-            print >>f, '  tprnfor='+bool2str(self.tprnfor)
+            print >>f, '  tprnfor='+bool2str(self.tprnfor)+','
         if self.dt is not None:
-            print >>f, '  dt='+num2str(self.dt)
+            print >>f, '  dt='+num2str(self.dt)+','
         if self.lkpoint_dir is not None:
-            print >>f, '  lkpoint_dir='+bool2str(self.lkpoint_dir)
+            print >>f, '  lkpoint_dir='+bool2str(self.lkpoint_dir)+','
         if self.max_seconds is not None:
-            print >>f, '  max_seconds='+num2str(self.max_seconds)
+            print >>f, '  max_seconds='+num2str(self.max_seconds)+','
         if self.etot_conv_thr is not None:
-            print >>f, '  etot_conv_thr='+num2str(self.etot_conv_thr)
+            print >>f, '  etot_conv_thr='+num2str(self.etot_conv_thr)+','
         if self.forc_conv_thr is not None:
-            print >>f, '  forc_conv_thr='+num2str(self.forc_conv_thr)
+            print >>f, '  forc_conv_thr='+num2str(self.forc_conv_thr)+','
         if self.tefield is not None:
-            print >>f, '  tefield='+bool2str(self.tefield)
+            print >>f, '  tefield='+bool2str(self.tefield)+','
         if self.dipfield is not None:
-            print >>f, '  dipfield='+bool2str(self.dipfield)
+            print >>f, '  dipfield='+bool2str(self.dipfield)+','
         if self.lelfield is not None:
-            print >>f, '  lelfield='+bool2str(self.lelfield)
+            print >>f, '  lelfield='+bool2str(self.lelfield)+','
         if self.nberrycyc is not None:
-            print >>f, '  nberrycyc='+str(self.nberrycyc)
+            print >>f, '  nberrycyc='+str(self.nberrycyc)+','
         if self.lorbm is not None:
-            print >>f, '  lorbm='+bool2str(self.lorbm)
+            print >>f, '  lorbm='+bool2str(self.lorbm)+','
         if self.lberry is not None:
-            print >>f, '  lberry='+bool2str(self.lberry)
+            print >>f, '  lberry='+bool2str(self.lberry)+','
         if self.gdir is not None:
-            print >>f, '  gdir='+str(self.gdir)
+            print >>f, '  gdir='+str(self.gdir)+','
         if self.nppstr is not None:
-            print >>f, '  nppstr='+str(self.nppstr)
+            print >>f, '  nppstr='+str(self.nppstr)+','
 
 
         ### &SYSTEM ###
@@ -1108,65 +1108,65 @@ svn co --username anonymous http://qeforge.qe-forge.org/svn/q-e/branches/espress
 
 # automatically generated parameters
         if self.ecutfock is not None:
-            print >>f, '  ecutfock='+num2str(self.ecutfock)
+            print >>f, '  ecutfock='+num2str(self.ecutfock)+','
         if self.force_symmorphic is not None:
-            print >>f, '  force_symmorphic='+bool2str(self.force_symmorphic)
+            print >>f, '  force_symmorphic='+bool2str(self.force_symmorphic)+','
         if self.use_all_frac is not None:
-            print >>f, '  use_all_frac='+bool2str(self.use_all_frac)
+            print >>f, '  use_all_frac='+bool2str(self.use_all_frac)+','
         if self.one_atom_occupations is not None:
-            print >>f, '  one_atom_occupations='+bool2str(self.one_atom_occupations)
+            print >>f, '  one_atom_occupations='+bool2str(self.one_atom_occupations)+','
         if self.starting_spin_angle is not None:
-            print >>f, '  starting_spin_angle='+bool2str(self.starting_spin_angle)
+            print >>f, '  starting_spin_angle='+bool2str(self.starting_spin_angle)+','
         if self.degauss is not None:
-            print >>f, '  degauss='+num2str(self.degauss)
+            print >>f, '  degauss='+num2str(self.degauss)+','
         if self.nspin is not None:
-            print >>f, '  nspin='+str(self.nspin)
+            print >>f, '  nspin='+str(self.nspin)+','
         if self.noncolin is not None:
-            print >>f, '  noncolin='+bool2str(self.noncolin)
+            print >>f, '  noncolin='+bool2str(self.noncolin)+','
         if self.ecfixed is not None:
-            print >>f, '  ecfixed='+num2str(self.ecfixed)
+            print >>f, '  ecfixed='+num2str(self.ecfixed)+','
         if self.qcutz is not None:
-            print >>f, '  qcutz='+num2str(self.qcutz)
+            print >>f, '  qcutz='+num2str(self.qcutz)+','
         if self.q2sigma is not None:
-            print >>f, '  q2sigma='+num2str(self.q2sigma)
+            print >>f, '  q2sigma='+num2str(self.q2sigma)+','
         if self.x_gamma_extrapolation is not None:
-            print >>f, '  x_gamma_extrapolation='+bool2str(self.x_gamma_extrapolation)
+            print >>f, '  x_gamma_extrapolation='+bool2str(self.x_gamma_extrapolation)+','
         if self.lda_plus_u is not None:
-            print >>f, '  lda_plus_u='+bool2str(self.lda_plus_u)
+            print >>f, '  lda_plus_u='+bool2str(self.lda_plus_u)+','
         if self.lda_plus_u_kind is not None:
-            print >>f, '  lda_plus_u_kind='+str(self.lda_plus_u_kind)
+            print >>f, '  lda_plus_u_kind='+str(self.lda_plus_u_kind)+','
         if self.edir is not None:
-            print >>f, '  edir='+str(self.edir)
+            print >>f, '  edir='+str(self.edir)+','
         if self.emaxpos is not None:
-            print >>f, '  emaxpos='+num2str(self.emaxpos)
+            print >>f, '  emaxpos='+num2str(self.emaxpos)+','
         if self.eopreg is not None:
-            print >>f, '  eopreg='+num2str(self.eopreg)
+            print >>f, '  eopreg='+num2str(self.eopreg)+','
         if self.eamp is not None:
-            print >>f, '  eamp='+num2str(self.eamp)
+            print >>f, '  eamp='+num2str(self.eamp)+','
         if self.clambda is not None:
-            print >>f, '  lambda='+num2str(self.clambda)
+            print >>f, '  lambda='+num2str(self.clambda)+','
         if self.report is not None:
-            print >>f, '  report='+str(self.report)
+            print >>f, '  report='+str(self.report)+','
         if self.lspinorb is not None:
-            print >>f, '  lspinorb='+bool2str(self.lspinorb)
+            print >>f, '  lspinorb='+bool2str(self.lspinorb)+','
         if self.esm_w is not None:
-            print >>f, '  esm_w='+num2str(self.esm_w)
+            print >>f, '  esm_w='+num2str(self.esm_w)+','
         if self.esm_efield is not None:
-            print >>f, '  esm_efield='+num2str(self.esm_efield)
+            print >>f, '  esm_efield='+num2str(self.esm_efield)+','
         if self.esm_nfit is not None:
-            print >>f, '  esm_nfit='+str(self.esm_nfit)
+            print >>f, '  esm_nfit='+str(self.esm_nfit)+','
         if self.london is not None:
-            print >>f, '  london='+bool2str(self.london)
+            print >>f, '  london='+bool2str(self.london)+','
         if self.london_s6 is not None:
-            print >>f, '  london_s6='+num2str(self.london_s6)
+            print >>f, '  london_s6='+num2str(self.london_s6)+','
         if self.london_rcut is not None:
-            print >>f, '  london_rcut='+num2str(self.london_rcut)
+            print >>f, '  london_rcut='+num2str(self.london_rcut)+','
         if self.xdm is not None:
-            print >>f, '  xdm='+bool2str(self.xdm)
+            print >>f, '  xdm='+bool2str(self.xdm)+','
         if self.xdm_a1 is not None:
-            print >>f, '  xdm_a1='+num2str(self.xdm_a1)
+            print >>f, '  xdm_a1='+num2str(self.xdm_a1)+','
         if self.xdm_a2 is not None:
-            print >>f, '  xdm_a2='+num2str(self.xdm_a2)
+            print >>f, '  xdm_a2='+num2str(self.xdm_a2)+','
 
 
         ### &ELECTRONS ###
@@ -1199,37 +1199,37 @@ svn co --username anonymous http://qeforge.qe-forge.org/svn/q-e/branches/espress
 
 # automatically generated parameters
         if self.electron_maxstep is not None:
-            print >>f, '  electron_maxstep='+str(self.electron_maxstep)
+            print >>f, '  electron_maxstep='+str(self.electron_maxstep)+','
         if self.scf_must_converge is not None:
-            print >>f, '  scf_must_converge='+bool2str(self.scf_must_converge)
+            print >>f, '  scf_must_converge='+bool2str(self.scf_must_converge)+','
         if self.conv_thr is not None:
-            print >>f, '  conv_thr='+num2str(self.conv_thr)
+            print >>f, '  conv_thr='+num2str(self.conv_thr)+','
         if self.adaptive_thr is not None:
-            print >>f, '  adaptive_thr='+bool2str(self.adaptive_thr)
+            print >>f, '  adaptive_thr='+bool2str(self.adaptive_thr)+','
         if self.conv_thr_init is not None:
-            print >>f, '  conv_thr_init='+num2str(self.conv_thr_init)
+            print >>f, '  conv_thr_init='+num2str(self.conv_thr_init)+','
         if self.conv_thr_multi is not None:
-            print >>f, '  conv_thr_multi='+num2str(self.conv_thr_multi)
+            print >>f, '  conv_thr_multi='+num2str(self.conv_thr_multi)+','
         if self.mixing_beta is not None:
-            print >>f, '  mixing_beta='+num2str(self.mixing_beta)
+            print >>f, '  mixing_beta='+num2str(self.mixing_beta)+','
         if self.mixing_ndim is not None:
-            print >>f, '  mixing_ndim='+str(self.mixing_ndim)
+            print >>f, '  mixing_ndim='+str(self.mixing_ndim)+','
         if self.mixing_fixed_ns is not None:
-            print >>f, '  mixing_fixed_ns='+str(self.mixing_fixed_ns)
+            print >>f, '  mixing_fixed_ns='+str(self.mixing_fixed_ns)+','
         if self.ortho_para is not None:
-            print >>f, '  ortho_para='+str(self.ortho_para)
+            print >>f, '  ortho_para='+str(self.ortho_para)+','
         if self.diago_thr_init is not None:
-            print >>f, '  diago_thr_init='+num2str(self.diago_thr_init)
+            print >>f, '  diago_thr_init='+num2str(self.diago_thr_init)+','
         if self.diago_cg_maxiter is not None:
-            print >>f, '  diago_cg_maxiter='+str(self.diago_cg_maxiter)
+            print >>f, '  diago_cg_maxiter='+str(self.diago_cg_maxiter)+','
         if self.diago_david_ndim is not None:
-            print >>f, '  diago_david_ndim='+str(self.diago_david_ndim)
+            print >>f, '  diago_david_ndim='+str(self.diago_david_ndim)+','
         if self.diago_full_acc is not None:
-            print >>f, '  diago_full_acc='+bool2str(self.diago_full_acc)
+            print >>f, '  diago_full_acc='+bool2str(self.diago_full_acc)+','
         if self.efield is not None:
-            print >>f, '  efield='+num2str(self.efield)
+            print >>f, '  efield='+num2str(self.efield)+','
         if self.tqr is not None:
-            print >>f, '  tqr='+bool2str(self.tqr)
+            print >>f, '  tqr='+bool2str(self.tqr)+','
 
 
 
@@ -1258,31 +1258,31 @@ svn co --username anonymous http://qeforge.qe-forge.org/svn/q-e/branches/espress
 
 # automatically generated parameters
         if self.remove_rigid_rot is not None:
-            print >>f, '  remove_rigid_rot='+bool2str(self.remove_rigid_rot)
+            print >>f, '  remove_rigid_rot='+bool2str(self.remove_rigid_rot)+','
         if self.tempw is not None:
-            print >>f, '  tempw='+num2str(self.tempw)
+            print >>f, '  tempw='+num2str(self.tempw)+','
         if self.tolp is not None:
-            print >>f, '  tolp='+num2str(self.tolp)
+            print >>f, '  tolp='+num2str(self.tolp)+','
         if self.delta_t is not None:
-            print >>f, '  delta_t='+num2str(self.delta_t)
+            print >>f, '  delta_t='+num2str(self.delta_t)+','
         if self.nraise is not None:
-            print >>f, '  nraise='+str(self.nraise)
+            print >>f, '  nraise='+str(self.nraise)+','
         if self.refold_pos is not None:
-            print >>f, '  refold_pos='+bool2str(self.refold_pos)
+            print >>f, '  refold_pos='+bool2str(self.refold_pos)+','
         if self.upscale is not None:
-            print >>f, '  upscale='+num2str(self.upscale)
+            print >>f, '  upscale='+num2str(self.upscale)+','
         if self.bfgs_ndim is not None:
-            print >>f, '  bfgs_ndim='+str(self.bfgs_ndim)
+            print >>f, '  bfgs_ndim='+str(self.bfgs_ndim)+','
         if self.trust_radius_max is not None:
-            print >>f, '  trust_radius_max='+num2str(self.trust_radius_max)
+            print >>f, '  trust_radius_max='+num2str(self.trust_radius_max)+','
         if self.trust_radius_min is not None:
-            print >>f, '  trust_radius_min='+num2str(self.trust_radius_min)
+            print >>f, '  trust_radius_min='+num2str(self.trust_radius_min)+','
         if self.trust_radius_ini is not None:
-            print >>f, '  trust_radius_ini='+num2str(self.trust_radius_ini)
+            print >>f, '  trust_radius_ini='+num2str(self.trust_radius_ini)+','
         if self.w_1 is not None:
-            print >>f, '  w_1='+num2str(self.w_1)
+            print >>f, '  w_1='+num2str(self.w_1)+','
         if self.w_2 is not None:
-            print >>f, '  w_2='+num2str(self.w_2)
+            print >>f, '  w_2='+num2str(self.w_2)+','
 
 
         ### &CELL ###
@@ -1299,9 +1299,9 @@ svn co --username anonymous http://qeforge.qe-forge.org/svn/q-e/branches/espress
 
 # automatically generated parameters
         if self.wmass is not None:
-            print >>f, '  wmass='+num2str(self.wmass)
+            print >>f, '  wmass='+num2str(self.wmass)+','
         if self.press_conv_thr is not None:
-            print >>f, '  press_conv_thr='+num2str(self.press_conv_thr)
+            print >>f, '  press_conv_thr='+num2str(self.press_conv_thr)+','
 
 
         ### CELL_PARAMETERS
