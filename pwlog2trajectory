@@ -33,9 +33,10 @@ def get_total_energy(s):
     if a == '':
         return None
     energy = float(a.split()[-2]) * rydberg
-    for i in range(9):
-        s.readline()
-    a = s.readline()
+    for i in range(11):
+        a = s.readline()
+        if '     smearing contrib.' in a:
+            break
     # correct for finite temperature entropy term
     # in case of finite temp. smearing
     if a[:22] == '     smearing contrib.':
