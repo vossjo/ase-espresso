@@ -29,6 +29,12 @@ def num2str(x):
         s += 'd0'
     return s
 
+#convert python to fortran logical
+def bool2str(x):
+    if x:
+        return '.true.'
+    else:
+        return '.false.'
 
 #convert some of ase's constraints to pw.x constraints for pw.x internal relaxation
 #returns constraints which are simply expressed as setting force components
