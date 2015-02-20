@@ -103,7 +103,6 @@ class espresso(Calculator):
                  startingwfc = None,
                  ion_positions = None,
                  parflags = None,
-                 trust_radius_min = None,
                  onlycreatepwinp = None, #specify filename to only create pw input
                  single_calculator = True, #if True, only one espresso job will be running
                  procrange = None, #let this espresso calculator run only on a subset of the requested cpus
@@ -475,7 +474,6 @@ svn co --username anonymous http://qeforge.qe-forge.org/svn/q-e/branches/espress
         self.started = False
         self.got_energy = False
         self.only_init = False
-        self.trust_radius_min = trust_radius_min
 
         #automatically generated list
         self.iprint = iprint
@@ -1253,9 +1251,6 @@ svn co --username anonymous http://qeforge.qe-forge.org/svn/q-e/branches/espress
                 print >>f, '/\n&IONS\n  ion_dynamics=\''+self.opt_algorithm+'\','
             else:
                 print >>f, '/\n&IONS\n  ion_dynamics=\'bfgs\','
-                if self.trust_radius_min is not None:
-                    print >>f, '/\n  trust_radius_min=\'{:.3e}\','.format(self.trust_radius_min)
-
             if self.ion_positions is not None:
                 print >>f, '  ion_positions=\''+self.ion_positions+'\','
         elif self.ion_positions is not None:
@@ -2556,7 +2551,7 @@ svn co --username anonymous http://qeforge.qe-forge.org/svn/q-e/branches/espress
 
 
 
-    def read_3d_grid(self, stream, log, remove_periodic_copy=False):
+    def read_3d_grid(self, stream, log):
         f = open(self.localtmp+'/'+log, 'a')
         x = stream.readline()
         while x!='' and x[:11]!='DATAGRID_3D':
@@ -2579,10 +2574,7 @@ svn co --username anonymous http://qeforge.qe-forge.org/svn/q-e/branches/espress
             x = stream.readline()
 
         f.close()
-        if remove_periodic_copy:
-            return (origin,cell,data[:-1, :-1, :-1])
-        else:
-            return (origin,cell,data)
+        return (origin,cell,data)
 
 
     def read_2d_grid(self, stream, log):
@@ -2652,7 +2644,7 @@ svn co --username anonymous http://qeforge.qe-forge.org/svn/q-e/branches/espress
             parallel=False, log='charge.log')
 
 
-    def extract_total_potential(self, spin='both', inputpp=None, plot=None, output_format=5, iflag=3, piperead=True, parallel=False):
+    def extract_total_potential(self, spin='both'):
         """
         Obtains the total potential as a numpy array after a DFT calculation.
         Returns (origin,cell,potential).
@@ -2664,18 +2656,11 @@ svn co --username anonymous http://qeforge.qe-forge.org/svn/q-e/branches/espress
         elif spin=='down' or spin==2:
             s = 2
         else:
-            raise ValueError, 'unknown spin component', spin
-
-        plot = plot if plot is not None else []
-        inputpp = inputpp if inputpp is not None else [['plot_num',1]]
-        inputpp.append(['spin_component', s])
+            raise ValueError, 'unknown spin component'
 
         p = self.run_ppx('totalpot.inp',
-            inputpp=inputpp,
-            piperead=piperead,
-            parallel=parallel,
-            plot=plot,
-            )
+            inputpp=[['plot_num',1],['spin_component',s]],
+            piperead=True, parallel=False)
         origin,cell,data = self.read_3d_grid(p, 'totalpot.log')
         p.close()
         return (origin,cell,data*rydberg)
