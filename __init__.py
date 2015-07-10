@@ -3218,7 +3218,7 @@ svn co --username anonymous http://qeforge.qe-forge.org/svn/q-e/branches/espress
         print >>f, self.sdir + "/" + pot_filename
         print >>f, '1.D0'
         print >>f, '1440'
-        print >>f, '3'
+        print >>f, str(edir)
         print >>f, '3.835000000'
         print >>f, ''
         f.close()
@@ -3246,7 +3246,17 @@ svn co --username anonymous http://qeforge.qe-forge.org/svn/q-e/branches/espress
         fermi_energy = float(fermi_data.readline().split()[-2])
         fermi_data.close()
 
-        return vacuum_energy * rydberg - fermi_energy
+        if self.dipole['status']:
+            eopreg = 0.025
+            if self.dipole.has_key('eopreg'):
+                eopreg = self.dipole['eopreg']
+            vacuum_energy1 = average_data[np.abs(np.array(average_data)[..., 0] - vacuum_pos + cell_length * eopreg).argmin()][2]
+            vacuum_energy2 = average_data[np.abs(np.array(average_data)[..., 0] - vacuum_pos - cell_length * eopreg).argmin()][2]
+            wf = [vacuum_energy1 * rydberg - fermi_energy, vacuum_energy2 * rydberg - fermi_energy]
+        else:
+            wf = vacuum_energy * rydberg - fermi_energy
+
+        return wf
 
 
     def generate_dummy_data(self):
