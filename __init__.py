@@ -3246,12 +3246,14 @@ svn co --username anonymous http://qeforge.qe-forge.org/svn/q-e/branches/espress
         fermi_energy = float(fermi_data.readline().split()[-2])
         fermi_data.close()
 
+        # if there's a dipole, we need to return 2 work functions - one for either direction away from the slab
         if self.dipole['status']:
             eopreg = 0.025
             if self.dipole.has_key('eopreg'):
                 eopreg = self.dipole['eopreg']
-            vacuum_energy1 = average_data[np.abs(np.array(average_data)[..., 0] - vacuum_pos + cell_length * eopreg).argmin()][2]
-            vacuum_energy2 = average_data[np.abs(np.array(average_data)[..., 0] - vacuum_pos - cell_length * eopreg).argmin()][2]
+            # we use cell_length*eopreg*3 here since the work functions seem to converge at that distance rather than *1 or *2
+            vacuum_energy1 = average_data[np.abs(np.array(average_data)[..., 0] - vacuum_pos + cell_length*eopreg*3).argmin()][2]
+            vacuum_energy2 = average_data[np.abs(np.array(average_data)[..., 0] - vacuum_pos - cell_length*eopreg*3).argmin()][2]
             wf = [vacuum_energy1 * rydberg - fermi_energy, vacuum_energy2 * rydberg - fermi_energy]
         else:
             wf = vacuum_energy * rydberg - fermi_energy
