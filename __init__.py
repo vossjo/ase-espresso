@@ -3208,10 +3208,9 @@ svn co --username anonymous http://qeforge.qe-forge.org/svn/q-e/branches/espress
             file = pot_filename
         self.update(self.atoms)
         self.stop()
-        if not os.path.exists(file):
-            self.run_ppx('wf_pp.in', log='wf_pp.log',
-                inputpp=[('plot_num', 11), ('filplot', self.topath('pot.xsf'))],
-                output_format=3, iflag=3, piperead=False, parallel=False)
+        self.run_ppx('wf_pp.in', log='wf_pp.log',
+            inputpp=[('plot_num', 11), ('filplot', self.topath('pot.xsf'))],
+            output_format=3, iflag=3, piperead=False, parallel=False)
 
         f = open(self.localtmp + '/avg.in', 'w')
         print >>f, '1'
