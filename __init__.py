@@ -3189,7 +3189,7 @@ svn co --username anonymous http://qeforge.qe-forge.org/svn/q-e/branches/espress
         differences = np.append(differences, position_array[0] + 1 - position_array[-1])  # through the PBC
         max_diff_index = np.argmax(differences)
         if max_diff_index == len(position_array) - 1:
-            return (position_array[0] + 1 + position_array[-1]) / 2.
+            return (position_array[0] + 1 + position_array[-1]) / 2. % 1  # should be < 1 in cell units
         else:
             return (position_array[max_diff_index] + position_array[max_diff_index + 1]) / 2.
 
@@ -3218,7 +3218,7 @@ svn co --username anonymous http://qeforge.qe-forge.org/svn/q-e/branches/espress
         print >>f, self.sdir + "/" + pot_filename
         print >>f, '1.D0'
         print >>f, '1440'
-        print >>f, '3'
+        print >>f, str(edir)
         print >>f, '3.835000000'
         print >>f, ''
         f.close()
@@ -3246,7 +3246,19 @@ svn co --username anonymous http://qeforge.qe-forge.org/svn/q-e/branches/espress
         fermi_energy = float(fermi_data.readline().split()[-2])
         fermi_data.close()
 
-        return vacuum_energy * rydberg - fermi_energy
+        # if there's a dipole, we need to return 2 work functions - one for either direction away from the slab
+        if self.dipole['status']:
+            eopreg = 0.025
+            if self.dipole.has_key('eopreg'):
+                eopreg = self.dipole['eopreg']
+            # we use cell_length*eopreg*3 here since the work functions seem to converge at that distance rather than *1 or *2
+            vacuum_energy1 = average_data[np.abs(np.array(average_data)[..., 0] - vacuum_pos + cell_length*eopreg*3).argmin()][2]
+            vacuum_energy2 = average_data[np.abs(np.array(average_data)[..., 0] - vacuum_pos - cell_length*eopreg*3).argmin()][2]
+            wf = [vacuum_energy1 * rydberg - fermi_energy, vacuum_energy2 * rydberg - fermi_energy]
+        else:
+            wf = vacuum_energy * rydberg - fermi_energy
+
+        return wf
 
 
     def generate_dummy_data(self):
