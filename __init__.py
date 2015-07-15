@@ -3189,7 +3189,7 @@ svn co --username anonymous http://qeforge.qe-forge.org/svn/q-e/branches/espress
         differences = np.append(differences, position_array[0] + 1 - position_array[-1])  # through the PBC
         max_diff_index = np.argmax(differences)
         if max_diff_index == len(position_array) - 1:
-            return (position_array[0] + 1 + position_array[-1]) / 2.
+            return (position_array[0] + 1 + position_array[-1]) / 2. % 1  # should be < 1 in cell units
         else:
             return (position_array[max_diff_index] + position_array[max_diff_index + 1]) / 2.
 
