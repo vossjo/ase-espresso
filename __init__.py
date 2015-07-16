@@ -3206,8 +3206,8 @@ svn co --username anonymous http://qeforge.qe-forge.org/svn/q-e/branches/espress
             file = self.sdir + '/' + pot_filename
         else:
             file = pot_filename
-        self.update(self.atoms)
-        self.stop()
+#        self.update(self.atoms)
+#        self.stop()
         self.run_ppx('wf_pp.in', log='wf_pp.log',
             inputpp=[('plot_num', 11), ('filplot', self.topath('pot.xsf'))],
             output_format=3, iflag=3, piperead=False, parallel=False)
@@ -3255,7 +3255,7 @@ svn co --username anonymous http://qeforge.qe-forge.org/svn/q-e/branches/espress
             vac_pos1 = (vacuum_pos - cell_length*eopreg*2.5) % cell_length
             vac_pos2 = (vacuum_pos + cell_length*eopreg*2.5) % cell_length
             vac_index1 = np.abs(np.array(average_data)[..., 0] - vac_pos1).argmin()
-            vac_index1 = np.abs(np.array(average_data)[..., 0] - vac_pos2).argmin()
+            vac_index2 = np.abs(np.array(average_data)[..., 0] - vac_pos2).argmin()
             vacuum_energy1 = average_data[vac_index1][1]
             vacuum_energy2 = average_data[vac_index2][1]
             wf = [vacuum_energy1 * rydberg - fermi_energy, vacuum_energy2 * rydberg - fermi_energy]
@@ -3263,6 +3263,8 @@ svn co --username anonymous http://qeforge.qe-forge.org/svn/q-e/branches/espress
             wf = vacuum_energy * rydberg - fermi_energy
 
         if plot:
+            import matplotlib
+            matplotlib.use('agg')
             import matplotlib.pyplot as plt
             fig = plt.figure(1)
             x= np.array(average_data)[:,0]
@@ -3271,11 +3273,11 @@ svn co --username anonymous http://qeforge.qe-forge.org/svn/q-e/branches/espress
 
             plt.plot([0, x[-1]], [fermi_energy, fermi_energy], label='Fermi level')
 
-            plt.plot([average_data[vac_pos1][0], average_data[vac_pos1][0]], [fermi_energy, vacuum_energy1*rydberg ], ':r')
-            plt.text(average_data[vac_pos1][0]-0.16*cell_length, (fermi_energy+ vacuum_energy1*rydberg) / 2, '$\phi_1$ = %.2f eV' % (wf[0]), va='center')
+            plt.plot([average_data[vac_index1][0], average_data[vac_index1][0]], [fermi_energy, vacuum_energy1*rydberg ], ':r')
+            plt.text(average_data[vac_index1][0]-0.16*cell_length, (fermi_energy+ vacuum_energy1*rydberg) / 2, '$\phi_1$ = %.2f eV' % (wf[0]), va='center')
 
-            plt.plot([average_data[vac_pos2][0], average_data[vac_pos2][0]], [fermi_energy, vacuum_energy2*rydberg ], ':r')
-            plt.text(average_data[vac_pos2][0]+0.02*cell_length, (fermi_energy+ vacuum_energy2*rydberg) / 2, '$\phi_2$ = %.2f eV' % (wf[1]), va='center')
+            plt.plot([average_data[vac_index2][0], average_data[vac_index2][0]], [fermi_energy, vacuum_energy2*rydberg ], ':r')
+            plt.text(average_data[vac_index2][0]+0.02*cell_length, (fermi_energy+ vacuum_energy2*rydberg) / 2, '$\phi_2$ = %.2f eV' % (wf[1]), va='center')
             plt.xlabel('$z$, bohr')
             plt.ylabel('Potential energy, eV')
             plt.legend(loc=4)
