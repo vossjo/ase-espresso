@@ -3194,7 +3194,7 @@ svn co --username anonymous http://qeforge.qe-forge.org/svn/q-e/branches/espress
             return (position_array[max_diff_index] + position_array[max_diff_index + 1]) / 2.
 
 
-    def get_work_function(self, pot_filename="pot.xsf", edir=3):
+    def get_work_function(self, pot_filename="pot.xsf", edir=3, plot=False):
         """
         Calculates the work function of a calculation by subtracting the electrostatic
         potential of the vacuum (from averaging the output of pp.x num_plot 11 in the z
@@ -3239,7 +3239,8 @@ svn co --username anonymous http://qeforge.qe-forge.org/svn/q-e/branches/espress
                 record = False
             if record == True:
                 average_data.append([float(i) for i in line.split()])
-        vacuum_energy = average_data[np.abs(np.array(average_data)[..., 0] - vacuum_pos).argmin()][2]
+        # [1] is planar average [2] is macroscopic average
+        vacuum_energy = average_data[np.abs(np.array(average_data)[..., 0] - vacuum_pos).argmin()][1]  
 
         # Get the latest Fermi energy
         fermi_data = os.popen('grep -n "Fermi" ' + self.log + ' | tail -1', 'r')
@@ -3250,11 +3251,35 @@ svn co --username anonymous http://qeforge.qe-forge.org/svn/q-e/branches/espress
             eopreg = 0.025
             if self.dipole.has_key('eopreg'):
                 eopreg = self.dipole['eopreg']
-            vacuum_energy1 = average_data[np.abs(np.array(average_data)[..., 0] - vacuum_pos + cell_length * eopreg).argmin()][2]
-            vacuum_energy2 = average_data[np.abs(np.array(average_data)[..., 0] - vacuum_pos - cell_length * eopreg).argmin()][2]
+            # we use cell_length*eopreg*2.5 here since the work functions seem to converge at that distance rather than *1 or *2
+            vac_pos1 = (vacuum_pos - cell_length*eopreg*2.5) % cell_length
+            vac_pos2 = (vacuum_pos + cell_length*eopreg*2.5) % cell_length
+            vac_index1 = np.abs(np.array(average_data)[..., 0] - vac_pos1).argmin()
+            vac_index1 = np.abs(np.array(average_data)[..., 0] - vac_pos2).argmin()
+            vacuum_energy1 = average_data[vac_index1][1]
+            vacuum_energy2 = average_data[vac_index2][1]
             wf = [vacuum_energy1 * rydberg - fermi_energy, vacuum_energy2 * rydberg - fermi_energy]
         else:
             wf = vacuum_energy * rydberg - fermi_energy
+
+        if plot:
+            import matplotlib.pyplot as plt
+            fig = plt.figure(1)
+            x= np.array(average_data)[:,0]
+            y = np.array(average_data)[:,1]*rydberg
+            plt.plot(x,y, label='potential energy')
+
+            plt.plot([0, x[-1]], [fermi_energy, fermi_energy], label='Fermi level')
+
+            plt.plot([average_data[vac_pos1][0], average_data[vac_pos1][0]], [fermi_energy, vacuum_energy1*rydberg ], ':r')
+            plt.text(average_data[vac_pos1][0]-0.16*cell_length, (fermi_energy+ vacuum_energy1*rydberg) / 2, '$\phi_1$ = %.2f eV' % (wf[0]), va='center')
+
+            plt.plot([average_data[vac_pos2][0], average_data[vac_pos2][0]], [fermi_energy, vacuum_energy2*rydberg ], ':r')
+            plt.text(average_data[vac_pos2][0]+0.02*cell_length, (fermi_energy+ vacuum_energy2*rydberg) / 2, '$\phi_2$ = %.2f eV' % (wf[1]), va='center')
+            plt.xlabel('$z$, bohr')
+            plt.ylabel('Potential energy, eV')
+            plt.legend(loc=4)
+            fig.savefig('potential.png')
 
         return wf
 
