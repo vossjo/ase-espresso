@@ -3202,19 +3202,17 @@ svn co --username anonymous http://qeforge.qe-forge.org/svn/q-e/branches/espress
         Values used for average.x come from the espresso example for work function for a surface
         """
         #TODO: Implement some sort of tuning for these parameters?
-        if pot_filename[0] != '/':
-            file = self.sdir + '/' + pot_filename
-        else:
-            file = pot_filename
-#        self.update(self.atoms)
-#        self.stop()
+        pot_filename = self.topath(pot_filename)
+        if not os.path.exists(pot_filename):
+            self.update(self.atoms)
+            self.stop()
         self.run_ppx('wf_pp.in', log='wf_pp.log',
-            inputpp=[('plot_num', 11), ('filplot', self.topath('pot.xsf'))],
+            inputpp=[('plot_num', 11), ('filplot', pot_filename)],
             output_format=3, iflag=3, piperead=False, parallel=False)
 
         f = open(self.localtmp + '/avg.in', 'w')
         print >>f, '1'
-        print >>f, self.sdir + "/" + pot_filename
+        print >>f, pot_filename
         print >>f, '1.D0'
         print >>f, '1440'
         print >>f, str(edir)
