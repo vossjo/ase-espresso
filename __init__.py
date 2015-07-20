@@ -3194,7 +3194,7 @@ svn co --username anonymous http://qeforge.qe-forge.org/svn/q-e/branches/espress
             return (position_array[max_diff_index] + position_array[max_diff_index + 1]) / 2.
 
 
-    def get_work_function(self, pot_filename="pot.xsf", edir=3, plot=False):
+    def get_work_function(self, pot_filename="pot.xsf", edir=3, plot=False, remove_xsf=True):
         """
         Calculates the work function of a calculation by subtracting the electrostatic
         potential of the vacuum (from averaging the output of pp.x num_plot 11 in the z
@@ -3203,29 +3203,36 @@ svn co --username anonymous http://qeforge.qe-forge.org/svn/q-e/branches/espress
         """
         #TODO: Implement some sort of tuning for these parameters?
         pot_filename = self.topath(pot_filename)
-        if not os.path.exists(pot_filename):
-            self.update(self.atoms)
-            self.stop()
-        self.run_ppx('wf_pp.in', log='wf_pp.log',
-            inputpp=[('plot_num', 11), ('filplot', pot_filename)],
-            output_format=3, iflag=3, piperead=False, parallel=False)
+        avg_data_path = self.localtmp + '/avg.out'
 
-        f = open(self.localtmp + '/avg.in', 'w')
-        print >>f, '1'
-        print >>f, pot_filename
-        print >>f, '1.D0'
-        print >>f, '1440'
-        print >>f, str(edir)
-        print >>f, '3.835000000'
-        print >>f, ''
-        f.close()
-        os.system('cp ' + self.localtmp + '/avg.in ' + self.scratch)
-        os.system('cd ' + self.scratch + ' ; ' + 'average.x < avg.in >>' + self.localtmp + '/avg.out')
+        if not os.path.exists(avg_data_path):
+            if not os.path.exists(pot_filename):
+                self.update(self.atoms)
+                self.stop()
+                self.run_ppx('wf_pp.in', log='wf_pp.log',
+                    inputpp=[('plot_num', 11), ('filplot', pot_filename)],
+                    output_format=3, iflag=3, piperead=False, parallel=False)
+
+            f = open(self.localtmp + '/avg.in', 'w')
+            print >>f, '1'
+            print >>f, pot_filename
+            print >>f, '1.D0'
+            print >>f, '1440'
+            print >>f, str(edir)
+            print >>f, '3.835000000'
+            print >>f, ''
+            f.close()
+            os.system('cp ' + self.localtmp + '/avg.in ' + self.scratch)
+            os.system('cd ' + self.scratch + ' ; ' + 'average.x < avg.in >>' + avg_data_path)
+
+        if remove_xsf and os.path.exists(pot_filename):
+            print "removing", pot_filename
+            os.system('rm ' + pot_filename)
 
         # Pick a good place to sample vacuum level
         cell_length = self.atoms.cell[edir - 1][edir - 1] / bohr
         vacuum_pos = self.find_max_empty_space(edir) * cell_length
-        avg_out = open(self.localtmp + '/avg.out', 'r')
+        avg_out = open(avg_data_path, 'r')
         record = False
         average_data = []
         lines = list(avg_out)
