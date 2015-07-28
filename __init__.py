@@ -13,7 +13,7 @@ try:
     import espsite
 except ImportError:
     print '*** ase-espresso requires a site-specific espsite.py in PYTHONPATH.'
-    print '*** You may use the espsite.py.example.* in the svn checkout as templates.'
+    print '*** You may use the espsite.py.example.* in the git checkout as templates.'
     raise ImportError
 site = espsite.config()
 
@@ -592,6 +592,15 @@ svn co --username anonymous http://qeforge.qe-forge.org/svn/q-e/branches/espress
 
         if atoms is not None:
             atoms.set_calculator(self)
+
+        if hasattr(site, 'mpi_not_setup') and self.onlycreatepwinp is None:
+            print '*** Without cluster-adjusted espsite.py, ase-espresso can only be used'
+            print '*** to create input files for pw.x via the option onlycreatepwinp.'
+            print '*** Otherwise, ase-espresso requires a site-specific espsite.py'
+            print '*** in PYTHONPATH.'
+            print '*** You may use the espsite.py.example.* in the git checkout as templates.'
+            raise ImportError
+
 
 
     def input_update(self):
