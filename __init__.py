@@ -1,5 +1,5 @@
 #****************************************************************************
-# Copyright (C) 2013 SUNCAT
+# Copyright (C) 2013-2015 SUNCAT
 # This file is distributed under the terms of the
 # GNU General Public License. See the file `COPYING'
 # in the root directory of the present distribution,
@@ -809,8 +809,6 @@ svn co --username anonymous http://qeforge.qe-forge.org/svn/q-e/branches/espress
         nvalence = np.zeros(len(self.specprops), np.int)
         for i,x in enumerate(self.specprops):
             nvalence[i] = nel[self.specdict[x[0]].s]
-        #if not self.spinpol:
-        #    nvalence /= 2
         return nvalence, nel
 
 
@@ -956,7 +954,7 @@ svn co --username anonymous http://qeforge.qe-forge.org/svn/q-e/branches/espress
             #if self.nbands is negative create -self.nbands extra bands
                 if self.nvalence == None:
                      self.nvalence, self.nel =  self.get_nvalence()
-                self.nbnd = int(np.sum(self.nvalence)-self.nbands)
+                self.nbnd = int(np.sum(self.nvalence)/2.-self.nbands)
             print >>f, '  nbnd='+str(self.nbnd)+','
         if overridenbands is not None:
             self.nbands = nbandssave
@@ -3194,7 +3192,7 @@ svn co --username anonymous http://qeforge.qe-forge.org/svn/q-e/branches/espress
             return (position_array[max_diff_index] + position_array[max_diff_index + 1]) / 2.
 
 
-    def get_work_function(self, pot_filename="pot.xsf", edir=3, plot=False, remove_xsf=True):
+    def get_work_function(self, pot_filename="pot.xsf", edir=3):
         """
         Calculates the work function of a calculation by subtracting the electrostatic
         potential of the vacuum (from averaging the output of pp.x num_plot 11 in the z
@@ -3202,37 +3200,32 @@ svn co --username anonymous http://qeforge.qe-forge.org/svn/q-e/branches/espress
         Values used for average.x come from the espresso example for work function for a surface
         """
         #TODO: Implement some sort of tuning for these parameters?
-        pot_filename = self.topath(pot_filename)
-        avg_data_path = self.localtmp + '/avg.out'
+        if pot_filename[0] != '/':
+            file = self.sdir + '/' + pot_filename
+        else:
+            file = pot_filename
+        self.update(self.atoms)
+        self.stop()
+        self.run_ppx('wf_pp.in', log='wf_pp.log',
+            inputpp=[('plot_num', 11), ('filplot', self.topath('pot.xsf'))],
+            output_format=3, iflag=3, piperead=False, parallel=False)
 
-        if not os.path.exists(avg_data_path):
-            if not os.path.exists(pot_filename):
-                self.update(self.atoms)
-                self.stop()
-                self.run_ppx('wf_pp.in', log='wf_pp.log',
-                    inputpp=[('plot_num', 11), ('filplot', pot_filename)],
-                    output_format=3, iflag=3, piperead=False, parallel=False)
-
-            f = open(self.localtmp + '/avg.in', 'w')
-            print >>f, '1'
-            print >>f, pot_filename
-            print >>f, '1.D0'
-            print >>f, '1440'
-            print >>f, str(edir)
-            print >>f, '3.835000000'
-            print >>f, ''
-            f.close()
-            os.system('cp ' + self.localtmp + '/avg.in ' + self.scratch)
-            os.system('cd ' + self.scratch + ' ; ' + 'average.x < avg.in >>' + avg_data_path)
-
-        if remove_xsf and os.path.exists(pot_filename):
-            print "removing", pot_filename
-            os.system('rm ' + pot_filename)
+        f = open(self.localtmp + '/avg.in', 'w')
+        print >>f, '1'
+        print >>f, self.sdir + "/" + pot_filename
+        print >>f, '1.D0'
+        print >>f, '1440'
+        print >>f, str(edir)
+        print >>f, '3.835000000'
+        print >>f, ''
+        f.close()
+        os.system('cp ' + self.localtmp + '/avg.in ' + self.scratch)
+        os.system('cd ' + self.scratch + ' ; ' + 'average.x < avg.in >>' + self.localtmp + '/avg.out')
 
         # Pick a good place to sample vacuum level
         cell_length = self.atoms.cell[edir - 1][edir - 1] / bohr
         vacuum_pos = self.find_max_empty_space(edir) * cell_length
-        avg_out = open(avg_data_path, 'r')
+        avg_out = open(self.localtmp + '/avg.out', 'r')
         record = False
         average_data = []
         lines = list(avg_out)
@@ -3243,8 +3236,7 @@ svn co --username anonymous http://qeforge.qe-forge.org/svn/q-e/branches/espress
                 record = False
             if record == True:
                 average_data.append([float(i) for i in line.split()])
-        # [1] is planar average [2] is macroscopic average
-        vacuum_energy = average_data[np.abs(np.array(average_data)[..., 0] - vacuum_pos).argmin()][1]  
+        vacuum_energy = average_data[np.abs(np.array(average_data)[..., 0] - vacuum_pos).argmin()][2]
 
         # Get the latest Fermi energy
         fermi_data = os.popen('grep -n "Fermi" ' + self.log + ' | tail -1', 'r')
@@ -3256,37 +3248,12 @@ svn co --username anonymous http://qeforge.qe-forge.org/svn/q-e/branches/espress
             eopreg = 0.025
             if self.dipole.has_key('eopreg'):
                 eopreg = self.dipole['eopreg']
-            # we use cell_length*eopreg*2.5 here since the work functions seem to converge at that distance rather than *1 or *2
-            vac_pos1 = (vacuum_pos - cell_length*eopreg*2.5) % cell_length
-            vac_pos2 = (vacuum_pos + cell_length*eopreg*2.5) % cell_length
-            vac_index1 = np.abs(np.array(average_data)[..., 0] - vac_pos1).argmin()
-            vac_index2 = np.abs(np.array(average_data)[..., 0] - vac_pos2).argmin()
-            vacuum_energy1 = average_data[vac_index1][1]
-            vacuum_energy2 = average_data[vac_index2][1]
+            # we use cell_length*eopreg*3 here since the work functions seem to converge at that distance rather than *1 or *2
+            vacuum_energy1 = average_data[np.abs(np.array(average_data)[..., 0] - vacuum_pos + cell_length*eopreg*3).argmin()][2]
+            vacuum_energy2 = average_data[np.abs(np.array(average_data)[..., 0] - vacuum_pos - cell_length*eopreg*3).argmin()][2]
             wf = [vacuum_energy1 * rydberg - fermi_energy, vacuum_energy2 * rydberg - fermi_energy]
         else:
             wf = vacuum_energy * rydberg - fermi_energy
-
-        if plot:
-            import matplotlib
-            matplotlib.use('agg')
-            import matplotlib.pyplot as plt
-            fig = plt.figure(1)
-            x= np.array(average_data)[:,0]
-            y = np.array(average_data)[:,1]*rydberg
-            plt.plot(x,y, label='potential energy')
-
-            plt.plot([0, x[-1]], [fermi_energy, fermi_energy], label='Fermi level')
-
-            plt.plot([average_data[vac_index1][0], average_data[vac_index1][0]], [fermi_energy, vacuum_energy1*rydberg ], ':r')
-            plt.text(average_data[vac_index1][0]-0.16*cell_length, (fermi_energy+ vacuum_energy1*rydberg) / 2, '$\phi_1$ = %.2f eV' % (wf[0]), va='center')
-
-            plt.plot([average_data[vac_index2][0], average_data[vac_index2][0]], [fermi_energy, vacuum_energy2*rydberg ], ':r')
-            plt.text(average_data[vac_index2][0]+0.02*cell_length, (fermi_energy+ vacuum_energy2*rydberg) / 2, '$\phi_2$ = %.2f eV' % (wf[1]), va='center')
-            plt.xlabel('$z$, bohr')
-            plt.ylabel('Potential energy, eV')
-            plt.legend(loc=4)
-            fig.savefig('potential.png')
 
         return wf
 
