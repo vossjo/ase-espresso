@@ -137,7 +137,6 @@ class espresso(Calculator):
                  starting_spin_angle = None,
                  degauss = None,
                  nspin = None,
-                 noncolin = None,
                  ecfixed = None,
                  qcutz = None,
                  q2sigma = None,
@@ -502,7 +501,6 @@ svn co --username anonymous http://qeforge.qe-forge.org/svn/q-e/branches/espress
         self.starting_spin_angle = starting_spin_angle
         self.degauss = degauss
         self.nspin = nspin
-        self.noncolin = noncolin
         self.ecfixed = ecfixed
         self.qcutz = qcutz
         self.q2sigma = q2sigma
@@ -963,7 +961,10 @@ svn co --username anonymous http://qeforge.qe-forge.org/svn/q-e/branches/espress
             #if self.nbands is negative create -self.nbands extra bands
                 if self.nvalence == None:
                      self.nvalence, self.nel =  self.get_nvalence()
-                self.nbnd = int(np.sum(self.nvalence)/2.-self.nbands)
+                if self.noncollinear:
+                    self.nbnd = int(np.sum(self.nvalence)-self.nbands*2.)
+                else:
+                    self.nbnd = int(np.sum(self.nvalence)/2.-self.nbands)
             print >>f, '  nbnd='+str(self.nbnd)+','
         if overridenbands is not None:
             self.nbands = nbandssave
@@ -1128,8 +1129,6 @@ svn co --username anonymous http://qeforge.qe-forge.org/svn/q-e/branches/espress
             print >>f, '  degauss='+num2str(self.degauss)+','
         if self.nspin is not None:
             print >>f, '  nspin='+str(self.nspin)+','
-        if self.noncolin is not None:
-            print >>f, '  noncolin='+bool2str(self.noncolin)+','
         if self.ecfixed is not None:
             print >>f, '  ecfixed='+num2str(self.ecfixed)+','
         if self.qcutz is not None:
