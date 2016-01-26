@@ -189,7 +189,8 @@ class espresso(Calculator):
                  w_1 = None,
                  w_2 = None,
                  wmass = None,
-                 press_conv_thr = None
+                 press_conv_thr = None,
+                 results = {}
                  ):
         """
     Construct an ase-espresso calculator.
@@ -1468,6 +1469,7 @@ svn co --username anonymous http://qeforge.qe-forge.org/svn/q-e/branches/espress
             a = self.cout.readline()
             s.write(a)
             atom_occ = {}
+            magmoms = np.zeros(len(atoms))
             while a!='' and a[:17]!='!    total energy' and a[:13]!='     stopping' and a[:20]!='     convergence NOT':
                 a = self.cout.readline()
                 s.write(a)
@@ -1502,6 +1504,8 @@ svn co --username anonymous http://qeforge.qe-forge.org/svn/q-e/branches/espress
                                 #'   4.20435  1.27943  5.48377'
                                 Nks = [float(a[42:52]), float(a[53:62]), float(a[63:71])]
                                 Nks=Nks[-1] # only taking the total occupation
+                                magmom = Nks[0] - Nks[1]
+                                magmoms[atomnum] = magmom
                             atom_occ[atomnum-1]['ks']=Nks
                     break
             if a[:20]=='     convergence NOT':
@@ -1519,6 +1523,7 @@ svn co --username anonymous http://qeforge.qe-forge.org/svn/q-e/branches/espress
                 #throw this generic error
                 raise RuntimeError, 'SCF calculation failed'
             self.atom_occ = atom_occ
+            self.results['magmoms'] = magmoms
             if self.calcmode in ('ase3','relax','scf','vc-relax','vc-md','md','hund'):
                 self.energy_free = float(a.split()[-2])*rydberg
                 # get S*T correction (there is none for Marzari-Vanderbilt=Cold smearing)
