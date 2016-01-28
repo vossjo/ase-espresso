@@ -555,6 +555,7 @@ svn co --username anonymous http://qeforge.qe-forge.org/svn/q-e/branches/espress
         self.w_2 = w_2
         self.wmass = wmass
         self.press_conv_thr = press_conv_thr
+        self.results = results
 
 
         #give original espresso style input names
