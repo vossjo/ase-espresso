@@ -17,7 +17,10 @@ except ImportError:
     raise ImportError
 site = espsite.config()
 
-from ase.calculators.general import Calculator
+try:
+    from ase.calculators.calculator import FileIOCalculator as Calculator
+except:
+    from ase.calculators.general import Calculator
 import atexit
 import sys, string
 import numpy as np
@@ -35,6 +38,8 @@ class espresso(Calculator):
     """
     ase interface for Quantum Espresso
     """
+    implemented_properties = ['energy', 'free_energy', 'forces', 'stress', 'magmom', 'magmoms']
+
     def __init__(self,
                  atoms = None,
                  pw = 350.0,
@@ -190,7 +195,12 @@ class espresso(Calculator):
                  w_2 = None,
                  wmass = None,
                  press_conv_thr = None,
-                 results = {}
+                 results = {},
+                 name = 'espresso',
+                 restart=None,
+                 ignore_bad_restart_file=False,
+                 label=None,
+                 command=None,
                  ):
         """
     Construct an ase-espresso calculator.
@@ -291,6 +301,9 @@ svn co --username anonymous http://qeforge.qe-forge.org/svn/q-e/branches/espress
         - 'mv','Marzari-Vanderbilt': Marzari-Vanderbilt cold smearing
         - 'gauss','gaussian': Gaussian smearing
         - 'mp','Methfessel-Paxton': Methfessel-Paxton
+        For ase 3.7+ compatibility, smearing can also be a tuple where
+        the first parameter is the method and the 2nd parameter
+        is the smearing width which overrides sigma below
      sigma (0.1)
         smearing width in eV
      tot_charge (None)
@@ -556,6 +569,7 @@ svn co --username anonymous http://qeforge.qe-forge.org/svn/q-e/branches/espress
         self.wmass = wmass
         self.press_conv_thr = press_conv_thr
         self.results = results
+        self.name = name
 
 
         #give original espresso style input names
@@ -717,6 +731,7 @@ svn co --username anonymous http://qeforge.qe-forge.org/svn/q-e/branches/espress
                 self.fft_grid = value
         self.input_update()
         self.recalculate = True
+        self.results = {}
 
     def __del__(self):
         try:
@@ -1403,6 +1418,7 @@ svn co --username anonymous http://qeforge.qe-forge.org/svn/q-e/branches/espress
         if np.max(x)>1E-13 or np.min(x)<-1E-13 or morethanposchange \
             or (not self.started and not self.got_energy) or self.recalculate:
             self.recalculate = True
+            self.results = {}
             if self.opt_algorithm!='ase3' or self.calcmode in ('scf','nscf') or \
                 morethanposchange:
                 self.stop()
@@ -1411,6 +1427,14 @@ svn co --username anonymous http://qeforge.qe-forge.org/svn/q-e/branches/espress
             self.read(atoms)
         else:
             self.atoms = atoms.copy()
+
+    def calculate(self, atoms=None, properties=['energy'], system_changes=None):
+        """
+        ase 3.7+ compatibility method
+        """
+        if atoms is None:
+            atoms = self.atoms
+        self.update(atoms)
 
     def get_name(self):
         return 'QE-ASE3 interface'
@@ -1525,6 +1549,7 @@ svn co --username anonymous http://qeforge.qe-forge.org/svn/q-e/branches/espress
                 raise RuntimeError, 'SCF calculation failed'
             self.atom_occ = atom_occ
             self.results['magmoms'] = magmoms
+            self.results['magmom'] = np.sum(magmoms)
             if self.calcmode in ('ase3','relax','scf','vc-relax','vc-md','md','hund'):
                 self.energy_free = float(a.split()[-2])*rydberg
                 # get S*T correction (there is none for Marzari-Vanderbilt=Cold smearing)
@@ -1552,6 +1577,8 @@ svn co --username anonymous http://qeforge.qe-forge.org/svn/q-e/branches/espress
                 self.energy_zero = None
 
             self.got_energy = True
+            self.results['energy'] = self.energy_zero
+            self.results['free_energy'] = self.energy_free
 
             a = self.cout.readline()
             s.write(a)
@@ -1596,6 +1623,7 @@ svn co --username anonymous http://qeforge.qe-forge.org/svn/q-e/branches/espress
                 self.forces = None
             self.recalculate = False
             s.close()
+            self.results['forces'] = self.forces
             if self.opt_algorithm != 'ase3':
                 self.stop()
 
@@ -2011,6 +2039,7 @@ svn co --username anonymous http://qeforge.qe-forge.org/svn/q-e/branches/espress
             # converting to Voigt notation as expected by ASE
             stress = np.array([stress[0, 0], stress[1, 1], stress[2, 2],
                                stress[1, 2], stress[0, 2], stress[0, 1]])
+            self.results['stress'] = stress
             return stress
         else:
             raise NotImplementedError
