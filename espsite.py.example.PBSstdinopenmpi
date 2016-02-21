@@ -1,8 +1,6 @@
 # cluster-dependent definitions
 # espresso.py will make use of all "self" variables in config class
-# although not necessary for the installation at the suncat cluster,
-# we use a named pipe instead of stdio for sending coordinates back to pw.x
-# as an example how to set this up
+
 import os
 
 class config:
