@@ -2246,7 +2246,7 @@ svn co --username anonymous http://qeforge.qe-forge.org/svn/q-e/branches/espress
         ngauss = None,
         sigma = None,
         nscf_fermilevel=False,
-        add_higher_channels=False,
+        add_higher_channels=True,
         get_overlap_integrals=False):
         """
         Calculate (projected) density of states.
