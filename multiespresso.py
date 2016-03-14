@@ -7,7 +7,7 @@
 #****************************************************************************
 
 
-from espresso import espresso
+from espresso import espresso, KohnShamConvergenceError
 from sys import stderr
 
 #keep track of ourselves so we can automatically stop us
@@ -68,7 +68,7 @@ class multiespresso:
                         if a[:13]=='     stopping':
                             raise RuntimeError, 'problem with calculator #%d' % i
                         elif a[:20]=='     convergence NOT':
-                            raise RuntimeError, 'calculator #%d did not converge' % i
+                            raise KohnShamConvergenceError('calculator #%d did not converge' % i)
                         elif a[1:17]!='    total energy':
                             stderr.write(a)
                         else:
