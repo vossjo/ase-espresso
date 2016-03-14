@@ -30,6 +30,12 @@ from subdirs import *
 # stopped automatically
 espresso_calculators = []
 
+# Define types of convergence errors that can be used to handle convergence error automatically
+class ConvergenceError(Exception):
+    pass
+    
+class KohnShamConvergenceError(ConvergenceError):
+    pass
 
 class espresso(Calculator):
     """
@@ -1155,7 +1161,7 @@ svn co --username anonymous http://qeforge.qe-forge.org/svn/q-e/branches/espress
                     break
             if a[:20]=='     convergence NOT':
                 self.stop()
-                raise RuntimeError, 'scf cycles did not converge\nincrease maximum number of steps and/or decreasing mixing'
+                raise KohnShamConvergenceError('scf cycles did not converge\nincrease maximum number of steps and/or decreasing mixing')
             elif a[:13]=='     stopping':
                 self.stop()
                 self.checkerror()
