@@ -811,8 +811,12 @@ svn co --username anonymous http://qeforge.qe-forge.org/svn/q-e/branches/espress
         self.nspecies = len(self.species)
         self.specdict = {}
         for i,s in dic.values():
+            if np.isnan(masses[i]):
+                mi = 0.0
+            else:
+                mi = masses[i]
             self.specdict[s] = specobj(s = s.strip('0123456789'), #chemical symbol w/o index
-                                       mass = masses[i],
+                                       mass = mi,
                                        magmom = magmoms[i],
                                        U = Ulist[i],
                                        J = Jlist[i],
