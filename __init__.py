@@ -161,6 +161,7 @@ class espresso(Calculator):
                  clambda = None,
                  report = None,
                  lspinorb = None,
+                 esm_bc = None,
                  esm_w = None,
                  esm_efield = None,
                  esm_nfit = None,
@@ -534,6 +535,7 @@ svn co --username anonymous http://qeforge.qe-forge.org/svn/q-e/branches/espress
         self.clambda = clambda
         self.report = report
         self.lspinorb = lspinorb
+        self.esm_bc = esm_bc
         self.esm_w = esm_w
         self.esm_efield = esm_efield
         self.esm_nfit = esm_nfit
@@ -1182,6 +1184,8 @@ svn co --username anonymous http://qeforge.qe-forge.org/svn/q-e/branches/espress
             print >>f, '  report='+str(self.report)+','
         if self.lspinorb is not None:
             print >>f, '  lspinorb='+bool2str(self.lspinorb)+','
+        if self.esm_bc is not None:
+            print >>f, '  esm_bc=\''+self.esm_bc+'\','
         if self.esm_w is not None:
             print >>f, '  esm_w='+num2str(self.esm_w)+','
         if self.esm_efield is not None:
