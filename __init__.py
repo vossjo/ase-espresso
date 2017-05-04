@@ -195,6 +195,12 @@ class espresso(Calculator):
                  refold_pos = None,
                  upscale = None,
                  bfgs_ndim = None,
+                 vdw_corr = None,
+                 ts_vdw_econv_thr = None,
+                 ts_vdw_isolated = None,
+                 lfcpopt = None,
+                 fcp_mu = None,
+                 esm_a = None,
                  trust_radius_max = None,
                  trust_radius_min = None,
                  trust_radius_ini = None,
@@ -569,6 +575,12 @@ svn co --username anonymous http://qeforge.qe-forge.org/svn/q-e/branches/espress
         self.refold_pos = refold_pos
         self.upscale = upscale
         self.bfgs_ndim = bfgs_ndim
+        self.vdw_corr = vdw_corr
+        self.ts_vdw_econv_thr = ts_vdw_econv_thr
+        self.ts_vdw_isolated = ts_vdw_isolated
+        self.lfcpopt = lfcpopt
+        self.fcp_mu = fcp_mu
+        self.esm_a = esm_a
         self.trust_radius_max = trust_radius_max
         self.trust_radius_min = trust_radius_min
         self.trust_radius_ini = trust_radius_ini
@@ -593,6 +605,9 @@ svn co --username anonymous http://qeforge.qe-forge.org/svn/q-e/branches/espress
         self.nvalence=None
         self.nel = None
         self.fermi_input = False
+
+        self.parameters = {}
+
         # Auto create variables from input
         self.input_update()
 
@@ -947,6 +962,8 @@ svn co --username anonymous http://qeforge.qe-forge.org/svn/q-e/branches/espress
             print >>f, '  gdir='+str(self.gdir)+','
         if self.nppstr is not None:
             print >>f, '  nppstr='+str(self.nppstr)+','
+        if self.lfcpopt is not None:
+            print >>f, '  lfcpopt='+bool2str(self.lfcpopt)+','
 
 
         ### &SYSTEM ###
@@ -1204,7 +1221,16 @@ svn co --username anonymous http://qeforge.qe-forge.org/svn/q-e/branches/espress
             print >>f, '  xdm_a1='+num2str(self.xdm_a1)+','
         if self.xdm_a2 is not None:
             print >>f, '  xdm_a2='+num2str(self.xdm_a2)+','
-
+        if self.vdw_corr is not None:
+            print >>f, '  vdw_corr=\''+self.vdw_corr+'\','
+        if self.ts_vdw_econv_thr is not None:
+            print >>f, '  ts_vdw_econv_thr='+num2str(self.ts_vdw_econv_thr)+','
+        if self.ts_vdw_isolated is not None:
+            print >>f, '  ts_vdw_isolated='+bool2str(self.tsw_vdw_isolated)+','
+        if self.fcp_mu is not None:
+            print >>f, '  fcp_mu='+num2str(self.fcp_mu)+','
+        if self.esm_a is not None:
+            print >>f, '  esm_a='+num2str(self.esm_a)+','
 
         ### &ELECTRONS ###
         print >>f,'/\n&ELECTRONS'
@@ -3310,7 +3336,7 @@ svn co --username anonymous http://qeforge.qe-forge.org/svn/q-e/branches/espress
             vac_pos1 = (vacuum_pos - cell_length*eopreg*2.5) % cell_length
             vac_pos2 = (vacuum_pos + cell_length*eopreg*2.5) % cell_length
             vac_index1 = np.abs(np.array(average_data)[..., 0] - vac_pos1).argmin()
-            vac_index1 = np.abs(np.array(average_data)[..., 0] - vac_pos2).argmin()
+            vac_index2 = np.abs(np.array(average_data)[..., 0] - vac_pos2).argmin()
             vacuum_energy1 = average_data[vac_index1][1]
             vacuum_energy2 = average_data[vac_index2][1]
             wf = [vacuum_energy1 * rydberg - fermi_energy, vacuum_energy2 * rydberg - fermi_energy]
