@@ -1005,7 +1005,7 @@ svn co --username anonymous http://qeforge.qe-forge.org/svn/q-e/branches/espress
                 self.nbnd = int(self.nbands)
             else:
             #if self.nbands is negative create -self.nbands extra bands
-                if self.nvalence == None:
+                if self.nvalence is None:
                      self.nvalence, self.nel =  self.get_nvalence()
                 if self.noncollinear:
                     self.nbnd = int(np.sum(self.nvalence)-self.nbands*2.)
