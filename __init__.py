@@ -879,7 +879,7 @@ svn co --username anonymous http://qeforge.qe-forge.org/svn/q-e/branches/espress
         return nvalence, nel
 
     def writeenvinputfile(self, filename='environ.in'):
-    """Write Environ input file"""
+        """Write Environ input file"""
         if self.cancalc:
             fname = self.localtmp+'/'+filename
             #f = open(self.localtmp+'/pw.inp', 'w')
@@ -1780,8 +1780,8 @@ svn co --username anonymous http://qeforge.qe-forge.org/svn/q-e/branches/espress
             if self.use_environ:
                 self.writeenvinputfile()
             self.writeinputfile()
-            if self.cancalc:
-                self.start()
+        if self.cancalc:
+            self.start()
 
     def check_spinpol(self):
         mm = self.atoms.get_initial_magnetic_moments()
@@ -1825,6 +1825,8 @@ svn co --username anonymous http://qeforge.qe-forge.org/svn/q-e/branches/espress
                 os.chdir(cdir)
             else:
                 os.system('cp '+self.localtmp+'/pw.inp '+self.scratch)
+                if self.use_environ:
+                    os.system('cp '+self.localtmp+'/environ.in '+self.scratch)
                 if self.calcmode!='hund':
                     self.cinp, self.cout = os.popen2('cd '+self.scratch+' ; '+self.exedir+'pw.x '+self.serflags+' -in pw.inp')
                 else:
@@ -2408,13 +2410,13 @@ svn co --username anonymous http://qeforge.qe-forge.org/svn/q-e/branches/espress
             if not hasattr(self, 'natoms'):
                 self.atoms2species()
                 self.natoms = len(self.atoms)
-                if self.use_environ:
-                    self.writeenvinputfile()
+            if self.use_environ:
+                self.writeenvinputfile()
             self.writeinputfile(filename='pwnscf.inp',
                 mode='nscf', usetetrahedra=tetrahedra, overridekpts=kpts,
                 overridekptshift=kptshift, overridenbands=nbands,
                 suppressforcecalc=True)
-            self.run_espressox('pw.x', 'pwnscf.inp', 'pwnscf.log')
+            self.run_espressox(self.exedir+'pw.x', 'pwnscf.inp', 'pwnscf.log')
             if nscf_fermilevel:
                 p = os.popen('grep Fermi '+self.localtmp+'/pwnscf.log|tail -1', 'r')
                 efermi = float(p.readline().split()[-2])
@@ -3421,8 +3423,8 @@ svn co --username anonymous http://qeforge.qe-forge.org/svn/q-e/branches/espress
         if not hasattr(self, 'natoms'):
             self.atoms2species()
             self.natoms = len(self.atoms)
-            if self.use_environ:
-                self.writeenvinputfile()
+        if self.use_environ:
+            self.writeenvinputfile()
         self.writeinputfile(filename='nonsense.inp',
                             mode='nscf', overridekpts=(1,1,1),
                             overridekptshift=(0,0,0), overridenbands=1,
