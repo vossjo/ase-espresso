@@ -48,7 +48,7 @@ class espresso(Calculator):
 
     def __init__(self,
                  atoms = None,
-		 exedir='',  #espresso binary folder, if "./" just take the current environmental variable
+                 exedir='',  #espresso binary folder, if "./" just take the current environmental variable
                  pw = 350.0,
                  dw = None,
                  fw = None,
@@ -215,8 +215,8 @@ class espresso(Calculator):
                  ignore_bad_restart_file=False,
                  label=None,
                  command=None,
-		 ####ENVIRON PART (credit Stefan Ringe)
-		 environ_keys=None, #Environ keys given as dictionary, if given use_environ=True
+                 ####ENVIRON PART (credit Stefan Ringe)
+                 environ_keys=None, #Environ keys given as dictionary, if given use_environ=True
                  ):
         """
     Construct an ase-espresso calculator.
@@ -413,7 +413,8 @@ svn co --username anonymous http://qeforge.qe-forge.org/svn/q-e/branches/espress
      verbose ('low')
         Can be 'high' or 'low'
         """
-	self.exedir=exedir
+        self.exedir=exedir
+        print 'starting calculation',self.exedir
 
         self.outdir= outdir
         self.onlycreatepwinp = onlycreatepwinp
@@ -489,20 +490,21 @@ svn co --username anonymous http://qeforge.qe-forge.org/svn/q-e/branches/espress
         self.exxdiv_treatment = exxdiv_treatment
         self.ecutvcut = ecutvcut
         self.newforcearray = alwayscreatenewarrayforforces
-	self.parflags=''
-	self.serflags=''
-	#ENVIRON IMPLICIT SOLVATION
-	if environ_keys is not None:
-	    self.parflags=' -environ '
-	    self.serflags=' -environ '
-	    self.environ_keys=environ_keys
-	    self.use_environ=True
-	else:
-	    self.parflags=''
-	    self.serflags=''
-	    self.use_environ=False
+        self.parflags=''
+        self.serflags=''
+        #ENVIRON IMPLICIT SOLVATION
+        if environ_keys is not None:
+            self.parflags=' -environ '
+            self.serflags=' -environ '
+            self.environ_keys=environ_keys
+            self.use_environ=True
+        else:
+            self.parflags=''
+            self.serflags=''
+            self.use_environ=False
         if parflags is not  None:
             self.parflags += parflags
+        print 'current keys',self.parflags, self.serflags
         self.single_calculator = single_calculator
         self.txt = txt
 
@@ -1545,10 +1547,11 @@ svn co --username anonymous http://qeforge.qe-forge.org/svn/q-e/branches/espress
             self.writeversion = False
             s = open(self.log,'a')
             s.write('  python dir          : '+self.mypath+'\n')
-	    if len(self.exedir) == 0:
-            	exedir = os.path.dirname(os.popen('which pw.x').readline())
-	    else:
-		exedir=self.exedir
+            print 'the exedir=',self.exedir
+            if len(self.exedir) == 0:
+                exedir = os.path.dirname(os.popen('which pw.x').readline())
+            else:
+                exedir=self.exedir
             s.write('  espresso dir        : '+exedir+'\n')
             s.write('  pseudo dir          : '+self.psppath+'\n')
             s.write('  ase-espresso py git : '+gitver+'\n\n\n')
