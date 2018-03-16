@@ -450,8 +450,8 @@ svn co --username anonymous http://qeforge.qe-forge.org/svn/q-e/branches/espress
         self.xc = xc
         self.beefensemble = beefensemble
         self.printensemble = printensemble
-        if type(smearing)==str:
-            self.smearing = smearing
+        if isinstance(smearing, (str, unicode)):
+            self.smearing = str(smearing)
             self.sigma = sigma
         else:
             self.smearing = smearing[0]
@@ -1436,7 +1436,7 @@ svn co --username anonymous http://qeforge.qe-forge.org/svn/q-e/branches/espress
             kp = self.kpts
         else:
             kp = overridekpts
-        if kp == 'gamma':
+        if kp is 'gamma':
             print >>f, 'K_POINTS Gamma'
         else:
             x = np.shape(kp)
@@ -2167,7 +2167,7 @@ svn co --username anonymous http://qeforge.qe-forge.org/svn/q-e/branches/espress
         return self.ST
 
     def checkerror(self):
-        p = os.popen('grep -n Giannozzi '+self.log+' | tail -1','r')
+        p = os.popen('grep -n --text Giannozzi '+self.log+' | tail -1','r')
         try:
             n = int(p.readline().split()[0].strip(':'))
         except:
