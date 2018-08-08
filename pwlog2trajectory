@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/local/bin/python
 
 
 #****************************************************************************
@@ -16,8 +16,9 @@ if len(argv) != 3:
     exit(1)
 
 import numpy as np
-from ase.io import PickleTrajectory
+from ase.io import Trajectory
 from ase import Atoms
+from ase.calculators.singlepoint import SinglePointDFTCalculator
 from os import popen
 
 import ase.units
@@ -25,7 +26,7 @@ hartree = ase.units.Hartree
 rydberg = ase.units.Rydberg
 bohr = ase.units.Bohr
 
-
+# Get energy from log.
 def get_total_energy(s):
     a = s.readline()
     while a != '' and a[:17] != '!    total energy':
@@ -43,22 +44,6 @@ def get_total_energy(s):
         energy -= 0.5 * float(a.split()[-2]) * rydberg
     return energy
 
-
-# dummy calculator
-class calculator:
-
-    def set_energy(self, e):
-        self.energy = e
-
-    def get_potential_energy(self):
-        return self.energy
-
-    def get_calculator(self):
-        return self
-
-    def notimpl(self, apply_constraint=False):
-        raise NotImplementedError
-
 p = popen('grep -n Giannozzi ' + argv[1] + ' 2>/dev/null | tail -1', 'r')
 try:
     n = int(p.readline().split()[0].strip(':'))
@@ -67,8 +52,6 @@ except:
     p.close()
     exit(2)
 p.close()
-
-calc = calculator()
 
 s = open(argv[1], 'r')
 # skip over previous runs in log in case the current log has been
@@ -105,27 +88,22 @@ natoms = len(pos)
 # as specified in the initial ionic step in log
 atoms = Atoms(syms, pos, cell=cell * alat, pbc=(1, 1, 1))
 
-atoms.get_calculator = calc.get_calculator
-atoms.get_potential_energy = calc.get_potential_energy
-atoms.get_forces = calc.notimpl
-atoms.get_stress = calc.notimpl
-atoms.get_charges = calc.notimpl
-
-# get total energy at first ionic step
+# Attach calculator object to atoms.
+calc = SinglePointDFTCalculator(atoms)
+atoms.set_calculator(calc)
+# Get total energy at first ionic step and store it in the calculator.
 en = get_total_energy(s)
 if en is not None:
-    calc.set_energy(en)
+    calc.results['energy'] = en
 else:
     print >>stderr, 'no total energy found'
     exit(3)
 
-print(atoms)
-
-traj = PickleTrajectory(argv[2], 'w')
-
-
+# Write to .traj file
+traj = Trajectory(argv[2], 'w')
 traj.write(atoms)
 
+# Append the following images.
 a = s.readline()
 while a != '':
     while a[:7] != 'CELL_PA' and a[:7] != 'ATOMIC_' and a != '':
@@ -145,9 +123,12 @@ while a != '':
             atoms.set_positions(pos)
         else:
             atoms.set_scaled_positions(pos)
-        # get total energy at 2nd,3rd,...nth ionic step
+        # Get total energy at 2nd,3rd,...nth ionic step.
         en = get_total_energy(s)
-        calc.set_energy(en)
+        # Initialize calculator with updated atoms.
+        calc = SinglePointDFTCalculator(atoms)
+        atoms.set_calculator(calc)
+        calc.results['energy'] = en
 
         if en is not None:
             traj.write(atoms)
