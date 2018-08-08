@@ -413,7 +413,8 @@ svn co --username anonymous http://qeforge.qe-forge.org/svn/q-e/branches/espress
      verbose ('low')
         Can be 'high' or 'low'
         """
-	self.exedir=exedir
+        self.exedir=exedir
+        print 'starting calculation',self.exedir
 
         self.outdir= outdir
         self.onlycreatepwinp = onlycreatepwinp
@@ -1545,10 +1546,11 @@ svn co --username anonymous http://qeforge.qe-forge.org/svn/q-e/branches/espress
             self.writeversion = False
             s = open(self.log,'a')
             s.write('  python dir          : '+self.mypath+'\n')
-	    if len(self.exedir) == 0:
-            	exedir = os.path.dirname(os.popen('which pw.x').readline())
-	    else:
-		exedir=self.exedir
+            print 'the exedir=',self.exedir
+            if len(self.exedir) == 0:
+                exedir = os.path.dirname(os.popen('which pw.x').readline())
+            else:
+                exedir=self.exedir
             s.write('  espresso dir        : '+exedir+'\n')
             s.write('  pseudo dir          : '+self.psppath+'\n')
             s.write('  ase-espresso py git : '+gitver+'\n\n\n')
