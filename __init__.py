@@ -48,7 +48,7 @@ class espresso(Calculator):
 
     def __init__(self,
                  atoms = None,
-		 exedir='',  #espresso binary folder, if "./" just take the current environmental variable
+                 exedir='',  #espresso binary folder, if "./" just take the current environmental variable
                  pw = 350.0,
                  dw = None,
                  fw = None,
@@ -215,8 +215,8 @@ class espresso(Calculator):
                  ignore_bad_restart_file=False,
                  label=None,
                  command=None,
-		 ####ENVIRON PART (credit Stefan Ringe)
-		 environ_keys=None, #Environ keys given as dictionary, if given use_environ=True
+                 ####ENVIRON PART (credit Stefan Ringe)
+                 environ_keys=None, #Environ keys given as dictionary, if given use_environ=True
                  ):
         """
     Construct an ase-espresso calculator.
@@ -489,19 +489,19 @@ svn co --username anonymous http://qeforge.qe-forge.org/svn/q-e/branches/espress
         self.exxdiv_treatment = exxdiv_treatment
         self.ecutvcut = ecutvcut
         self.newforcearray = alwayscreatenewarrayforforces
-	self.parflags=''
-	self.serflags=''
-	#ENVIRON IMPLICIT SOLVATION
-	if environ_keys is not None:
-	    self.parflags=' -environ '
-	    self.serflags=' -environ '
-	    self.environ_keys=environ_keys
-	    self.use_environ=True
-	else:
-	    self.parflags=''
-	    self.serflags=''
-	    self.use_environ=False
-        if parflags is not  None:
+        self.parflags=''
+        self.serflags=''
+        #ENVIRON IMPLICIT SOLVATION
+        if environ_keys is not None:
+            self.parflags=' -environ '
+            self.serflags=' -environ '
+            self.environ_keys=environ_keys
+            self.use_environ=True
+        else:
+            self.parflags=''
+            self.serflags=''
+            self.use_environ=False
+        if parflags is not None:
             self.parflags += parflags
         self.single_calculator = single_calculator
         self.txt = txt
@@ -1775,8 +1775,8 @@ svn co --username anonymous http://qeforge.qe-forge.org/svn/q-e/branches/espress
             self.natoms = len(self.atoms)
             #self.spos = zip(s, a.get_scaled_positions()) # UPDATE to have species indices
             self.check_spinpol()
-	    if self.use_environ:
-	        self.writeenvinputfile()
+            if self.use_environ:
+                self.writeenvinputfile()
             self.writeinputfile()
         if self.cancalc:
             self.start()
@@ -1806,9 +1806,9 @@ svn co --username anonymous http://qeforge.qe-forge.org/svn/q-e/branches/espress
                 cdir = os.getcwd()
                 os.chdir(self.localtmp)
                 os.system(site.perHostMpiExec+' cp '+self.localtmp+'/pw.inp '+self.scratch)
-		if self.use_environ:
+                if self.use_environ:
                     os.system(site.perHostMpiExec+' cp '+self.localtmp+'/environ.in '+self.scratch)
-	
+
                 if self.calcmode!='hund':
                     if not self.proclist:
                         self.cinp, self.cout = site.do_perProcMpiExec(self.scratch,self.exedir+'pw.x '+self.parflags+' -in pw.inp')
@@ -1818,21 +1818,21 @@ svn co --username anonymous http://qeforge.qe-forge.org/svn/q-e/branches/espress
                     site.runonly_perProcMpiExec(self.scratch,self.exedir+'pw.x '+self.serflags+' -in pw.inp >>'+self.log)
                     os.system("sed s/occupations.*/occupations=\\'fixed\\',/ <"+self.localtmp+"/pw.inp | sed s/ELECTRONS/ELECTRONS\\\\n\ \ startingwfc=\\'file\\',\\\\n\ \ startingpot=\\'file\\',/ | sed s/conv_thr.*/conv_thr="+num2str(self.conv_thr)+",/ | sed s/tot_magnetization.*/tot_magnetization="+num2str(self.totmag)+",/ >"+self.localtmp+"/pw2.inp")
                     os.system(site.perHostMpiExec+' cp '+self.localtmp+'/pw2.inp '+self.scratch)
-		    if self.use_environ:
-			os.system(site.perHostMpiExec+' cp '+self.localtmp+'/environ.in '+self.scratch)
+                    if self.use_environ:
+                        os.system(site.perHostMpiExec+' cp '+self.localtmp+'/environ.in '+self.scratch)
                     self.cinp, self.cout = site.do_perProcMpiExec(self.scratch,self.exedir+'pw.x '+self.parflags+' -in pw2.inp')
                 os.chdir(cdir)
             else:
                 os.system('cp '+self.localtmp+'/pw.inp '+self.scratch)
-		if self.use_environ:
-	  	    os.system('cp '+self.localtmp+'/environ.in '+self.scratch)	
+                if self.use_environ:
+                    os.system('cp '+self.localtmp+'/environ.in '+self.scratch)	
                 if self.calcmode!='hund':
                     self.cinp, self.cout = os.popen2('cd '+self.scratch+' ; '+self.exedir+'pw.x '+self.serflags+' -in pw.inp')
                 else:
                     os.system('cd '+self.scratch+' ; '+self.exedir+'pw.x '+self.serflags+' -in pw.inp >>'+self.log)
                     os.system("sed s/occupations.*/occupations=\\'fixed\\',/ <"+self.localtmp+"/pw.inp | sed s/ELECTRONS/ELECTRONS\\\\n\ \ startingwfc=\\'file\\',\\\\n\ \ startingpot=\\'file\\',/ | sed s/conv_thr.*/conv_thr="+num2str(self.conv_thr)+",/ | sed s/tot_magnetization.*/tot_magnetization="+num2str(self.totmag)+",/ >"+self.localtmp+"/pw2.inp")
                     os.system('cp '+self.localtmp+'/pw2.inp '+self.scratch)
-		    if self.use_environ:
+                    if self.use_environ:
                         os.system('cp '+self.localtmp+'/environ.in '+self.scratch)
 
                     self.cinp, self.cout = os.popen2('cd '+self.scratch+' ; '+self.exedir+'pw.x '+self.serflags+' -in pw2.inp')
