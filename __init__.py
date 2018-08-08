@@ -217,6 +217,7 @@ class espresso(Calculator):
                  command=None,
                  ####ENVIRON PART (credit Stefan Ringe)
                  environ_keys=None, #Environ keys given as dictionary, if given use_environ=True
+                 environ_extra_keys=None
                  ):
         """
     Construct an ase-espresso calculator.
@@ -414,7 +415,6 @@ svn co --username anonymous http://qeforge.qe-forge.org/svn/q-e/branches/espress
         Can be 'high' or 'low'
         """
         self.exedir=exedir
-        print 'starting calculation',self.exedir
 
         self.outdir= outdir
         self.onlycreatepwinp = onlycreatepwinp
@@ -502,7 +502,9 @@ svn co --username anonymous http://qeforge.qe-forge.org/svn/q-e/branches/espress
             self.parflags=''
             self.serflags=''
             self.use_environ=False
-        if parflags is not None:
+        self.environ_extra_keys=environ_extra_keys
+
+        if parflags is not  None:
             self.parflags += parflags
         self.single_calculator = single_calculator
         self.txt = txt
@@ -878,27 +880,37 @@ svn co --username anonymous http://qeforge.qe-forge.org/svn/q-e/branches/espress
         return nvalence, nel
 
     def writeenvinputfile(self, filename='environ.in'):
-	"""Write Environ input file"""
+        """Write Environ input file"""
         if self.cancalc:
             fname = self.localtmp+'/'+filename
             #f = open(self.localtmp+'/pw.inp', 'w')
         else:
             fname = self.pwinp.split('/')[:-1]+'/'+filename
-	f = open(fname,'w')
-	f.write(' &ENVIRON\n')
-	f.write('   !\n')
-	for key in self.environ_keys:
-	    value=self.environ_keys[key]
-	    if type(value)==str:
-	        f.write('   {} = \'{}\'\n'.format(key, self.environ_keys[key]))
-	    elif 'e' in str(value):
-		value_str=str(value).replace('e','D')
-	        f.write('   {} = {}\n'.format(key, value_str))
-	    else:
-	        f.write('   {} = {}\n'.format(key, self.environ_keys[key]))
-	f.write('   !\n')
-	f.write(' /')
-	f.close()
+        f = open(fname,'w')
+        f.write('&ENVIRON\n')
+        f.write('  !\n')
+        for key in self.environ_keys:
+            value=self.environ_keys[key]
+            if type(value)==str:
+                f.write('  {} = \'{}\'\n'.format(key, self.environ_keys[key]))
+            elif 'e' in str(value):
+                value_str=str(value).replace('e','D')
+                f.write('  {} = {}\n'.format(key, value_str))
+            else:
+                f.write('  {} = {}\n'.format(key, self.environ_keys[key]))
+        f.write('  !\n')
+        f.write('/\n')
+        if self.environ_extra_keys is not None:
+            for key in self.environ_extra_keys:
+                if 'unit' not in self.environ_extra_keys[key]:
+                    unit='bohr'
+                else:
+                    unit=self.environ_extra_keys[key]['unit']
+                f.write('{} {}\n'.format(key,unit))
+                for vals in self.environ_extra_keys[key]['settings']:
+                    print vals
+                    f.write('{}\n'.format(' '.join([str(vv) for vv in vals])))
+        f.close()
 
     def writeinputfile(self, filename='pw.inp', mode=None,
         overridekpts=None, overridekptshift=None, overridenbands=None,
@@ -1546,7 +1558,6 @@ svn co --username anonymous http://qeforge.qe-forge.org/svn/q-e/branches/espress
             self.writeversion = False
             s = open(self.log,'a')
             s.write('  python dir          : '+self.mypath+'\n')
-            print 'the exedir=',self.exedir
             if len(self.exedir) == 0:
                 exedir = os.path.dirname(os.popen('which pw.x').readline())
             else:
@@ -1810,7 +1821,6 @@ svn co --username anonymous http://qeforge.qe-forge.org/svn/q-e/branches/espress
                 os.system(site.perHostMpiExec+' cp '+self.localtmp+'/pw.inp '+self.scratch)
                 if self.use_environ:
                     os.system(site.perHostMpiExec+' cp '+self.localtmp+'/environ.in '+self.scratch)
-
                 if self.calcmode!='hund':
                     if not self.proclist:
                         self.cinp, self.cout = site.do_perProcMpiExec(self.scratch,self.exedir+'pw.x '+self.parflags+' -in pw.inp')
@@ -1827,7 +1837,7 @@ svn co --username anonymous http://qeforge.qe-forge.org/svn/q-e/branches/espress
             else:
                 os.system('cp '+self.localtmp+'/pw.inp '+self.scratch)
                 if self.use_environ:
-                    os.system('cp '+self.localtmp+'/environ.in '+self.scratch)	
+                    os.system('cp '+self.localtmp+'/environ.in '+self.scratch)
                 if self.calcmode!='hund':
                     self.cinp, self.cout = os.popen2('cd '+self.scratch+' ; '+self.exedir+'pw.x '+self.serflags+' -in pw.inp')
                 else:
@@ -1836,7 +1846,6 @@ svn co --username anonymous http://qeforge.qe-forge.org/svn/q-e/branches/espress
                     os.system('cp '+self.localtmp+'/pw2.inp '+self.scratch)
                     if self.use_environ:
                         os.system('cp '+self.localtmp+'/environ.in '+self.scratch)
-
                     self.cinp, self.cout = os.popen2('cd '+self.scratch+' ; '+self.exedir+'pw.x '+self.serflags+' -in pw2.inp')
 
             self.started = True
@@ -2292,18 +2301,16 @@ svn co --username anonymous http://qeforge.qe-forge.org/svn/q-e/branches/espress
             cdir = os.getcwd()
             os.chdir(self.localtmp)
             os.system(site.perHostMpiExec+' cp '+self.localtmp+'/'+inp+' '+self.scratch)
-	    if self.use_environ:
+            if self.use_environ:
                 os.system(site.perHostMpiExec+' cp '+self.localtmp+'/environ.in'+' '+self.scratch)
-
             if piperead:
                 p = site.do_perProcMpiExec_outputonly(self.scratch, binary+' '+self.parflags+' -in '+inp+ll)
             else:
                 site.runonly_perProcMpiExec(self.scratch, binary+' '+self.parflags+' -in '+inp+ll)
             os.chdir(cdir)
         else:
-	    if self.use_environ:
+            if self.use_environ:
                 os.system('cp '+self.localtmp+'/environ.in'+' '+self.scratch)
-
             os.system('cp '+self.localtmp+'/'+inp+' '+self.scratch)
             if piperead:
                 p = os.popen('cd '+self.scratch+' ; '+binary+' '+self.serflags+' -in '+inp+ll)
@@ -2414,8 +2421,8 @@ svn co --username anonymous http://qeforge.qe-forge.org/svn/q-e/branches/espress
             if not hasattr(self, 'natoms'):
                 self.atoms2species()
                 self.natoms = len(self.atoms)
-	    if self.use_environ:
-		self.writeenvinputfile()
+            if self.use_environ:
+                self.writeenvinputfile()
             self.writeinputfile(filename='pwnscf.inp',
                 mode='nscf', usetetrahedra=tetrahedra, overridekpts=kpts,
                 overridekptshift=kptshift, overridenbands=nbands,
@@ -2519,8 +2526,8 @@ svn co --username anonymous http://qeforge.qe-forge.org/svn/q-e/branches/espress
         oldnosym = self.nosym
         self.noinv = True
         self.nosym = True
-	if self.use_environ:
-	    self.writeenvinputfile()
+        if self.use_environ:
+            self.writeenvinputfile()
         self.writeinputfile(filename='pwnscf.inp',
             mode='nscf', overridekpts=kptpath,
             overridenbands=nbands, suppressforcecalc=True)
@@ -3427,8 +3434,8 @@ svn co --username anonymous http://qeforge.qe-forge.org/svn/q-e/branches/espress
         if not hasattr(self, 'natoms'):
             self.atoms2species()
             self.natoms = len(self.atoms)
-	if self.use_environ:
-	    self.writeenvinputfile()
+        if self.use_environ:
+            self.writeenvinputfile()
         self.writeinputfile(filename='nonsense.inp',
                             mode='nscf', overridekpts=(1,1,1),
                             overridekptshift=(0,0,0), overridenbands=1,

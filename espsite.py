@@ -4,43 +4,56 @@ import os
 
 class config:
     def __init__(self):
-        os.environ['LD_LIBRARY_PATH'] = '/nfs/slac/g/suncatfs/sw/espv17/intellib:/nfs/slac/g/suncatfs/sw/external/openmpi/1.6.3/install/lib:'+os.environ['LD_LIBRARY_PATH']
-        self.scratch = '/scratch'
+        self.scratch = os.path.dirname(os.getenv('LOCAL_SCRATCH'))
+        u = os.getenv('USER')
+        if self.scratch.find(u)<0:
+            self.scratch = os.path.join(self.scratch,u)
         if not os.path.exists(self.scratch):
             self.scratch = '/tmp'
-        self.submitdir = os.getenv('LS_SUBCWD')
+        self.submitdir = os.getenv('SLURM_SUBMIT_DIR')
         self.batch = self.submitdir!=None
+        #we typically run batch jobs without openmp threads here
+        if self.batch:
+            os.putenv('OMP_NUM_THREADS','1')
         #check for batch
         if self.batch:
-            procs = os.getenv('LSB_HOSTS').split()
+    	    #f = open('/home/vossj/suncat/specialpartitionsonly.txt', 'r')
+    	    #usernames = [x.strip() for x in f.readlines()]
+    	    usernames = []
+    	    #f.close()
+    	    if os.getenv('USER') in usernames:
+    		try:
+    		    partition = os.getenv('SLURM_JOB_PARTITION')
+    		except:
+    		    partition = ''
+    		if not (partition in ('iric',)):
+    		    import sys
+    		    print >>sys.stderr, 'Please use the iric partition for your jobs by specifying\n-p iric         when submitting your jobs.'
+    		    sys.exit(1)
+            self.jobid = os.getenv('SLURM_JOBID')
+            nodefile = self.submitdir+'/nodefile.'+self.jobid
+            uniqnodefile = self.submitdir+'/uniqnodefile.'+self.jobid
+            os.system('scontrol show hostnames $SLURM_JOB_NODELIST >'+uniqnodefile)
+            taskspernode = os.getenv('SLURM_TASKS_PER_NODE')
+            xtaskspernode = taskspernode.find('(')
+            if xtaskspernode > -1:
+        	taskspernode = taskspernode[:xtaskspernode]
+            os.system("awk '{for(i=0;i<"+taskspernode+";i++)print}' "+uniqnodefile+" >"+nodefile)
+            f = open(nodefile, 'r')
+            procs = [x.strip() for x in f.readlines()]
+            f.close()
             self.procs = procs
-            self.jobid = os.getenv('LSB_BATCH_JID')
-    
+
             nprocs = len(procs)
             self.nprocs = nprocs
-            d = {}
-            for x in procs:
-                d[x] = 1
-                nodes = list(d.keys())
-            nnodes = len(nodes)
-
-            fin,fout = os.popen4('mpirun --version')
-            mpiversion=fout.readlines()[0]
-            mpiversion=mpiversion.split()[3]
-            rsh_agent='orte_rsh_agent'
-            if mpiversion[:3]=='1.4':
-                rsh_agent='plm_rsh_agent'
-        
-            self.perHostMpiExec = 'mpiexec --mca '+rsh_agent+' /afs/slac.stanford.edu/package/lsf/bin.slac/gmmpirun_lsgrun.sh -host '+','.join(nodes)+' -np '+str(nnodes)
-            self.perProcMpiExec = 'pam -g /afs/slac/g/suncat/bin/suncat-tsmpirun -x LD_LIBRARY_PATH -wdir %s %s'
-            self.perSpecProcMpiExec = 'mpiexec --mca '+rsh_agent+' /afs/slac.stanford.edu/package/lsf/bin.slac/gmmpirun_lsgrun.sh -machinefile %s -np %d -wdir %s %s'
-            # hack for suncat to make sure RHEL5 nfs disks are automounted
-            # must be done before changing directories, otherwise mpirun
-            # appears to do "getpwd" and sends the "/a" form of the name
-            # to the slave nodes - cpo
-            siteInit=self.perHostMpiExec + ' ls '+self.submitdir+'>/dev/null'
-            os.system(siteInit)
             
+            p = os.popen('wc -l <'+uniqnodefile, 'r')
+            nnodes = p.readline().strip()
+            p.close()
+        
+            self.perHostMpiExec = 'mpiexec -machinefile '+uniqnodefile+' -np '+nnodes
+            self.perProcMpiExec = 'mpiexec -machinefile '+nodefile+' -np '+str(nprocs)+' -wdir %s %s'
+            self.perSpecProcMpiExec = 'mpiexec -machinefile %s -np %d -wdir %s %s'
 
     def do_perProcMpiExec(self, workdir, program):
         return os.popen2(self.perProcMpiExec % (workdir, program))
