@@ -1,0 +1,55 @@
+# cluster-dependent definitions
+# espresso.py will make use of all "self" variables in config class
+import os
+
+class config:
+    def __init__(self):
+        os.environ['LD_LIBRARY_PATH'] = '/nfs/slac/g/suncatfs/sw/espv17/intellib:/nfs/slac/g/suncatfs/sw/external/openmpi/1.6.3/install/lib:'+os.environ['LD_LIBRARY_PATH']
+        self.scratch = '/scratch'
+        if not os.path.exists(self.scratch):
+            self.scratch = '/tmp'
+        self.submitdir = os.getenv('LS_SUBCWD')
+        self.batch = self.submitdir!=None
+        #check for batch
+        if self.batch:
+            procs = os.getenv('LSB_HOSTS').split()
+            self.procs = procs
+            self.jobid = os.getenv('LSB_BATCH_JID')
+    
+            nprocs = len(procs)
+            self.nprocs = nprocs
+            d = {}
+            for x in procs:
+                d[x] = 1
+                nodes = list(d.keys())
+            nnodes = len(nodes)
+
+            fin,fout = os.popen4('mpirun --version')
+            mpiversion=fout.readlines()[0]
+            mpiversion=mpiversion.split()[3]
+            rsh_agent='orte_rsh_agent'
+            if mpiversion[:3]=='1.4':
+                rsh_agent='plm_rsh_agent'
+        
+            self.perHostMpiExec = 'mpiexec --mca '+rsh_agent+' /afs/slac.stanford.edu/package/lsf/bin.slac/gmmpirun_lsgrun.sh -host '+','.join(nodes)+' -np '+str(nnodes)
+            self.perProcMpiExec = 'pam -g /afs/slac/g/suncat/bin/suncat-tsmpirun -x LD_LIBRARY_PATH -wdir %s %s'
+            self.perSpecProcMpiExec = 'mpiexec --mca '+rsh_agent+' /afs/slac.stanford.edu/package/lsf/bin.slac/gmmpirun_lsgrun.sh -machinefile %s -np %d -wdir %s %s'
+            # hack for suncat to make sure RHEL5 nfs disks are automounted
+            # must be done before changing directories, otherwise mpirun
+            # appears to do "getpwd" and sends the "/a" form of the name
+            # to the slave nodes - cpo
+            siteInit=self.perHostMpiExec + ' ls '+self.submitdir+'>/dev/null'
+            os.system(siteInit)
+            
+
+    def do_perProcMpiExec(self, workdir, program):
+        return os.popen2(self.perProcMpiExec % (workdir, program))
+
+    def do_perProcMpiExec_outputonly(self, workdir, program):
+        return os.popen(self.perProcMpiExec % (workdir, program), 'r')
+
+    def runonly_perProcMpiExec(self, workdir, program):
+        os.system(self.perProcMpiExec % (workdir, program))
+
+    def do_perSpecProcMpiExec(self, machinefile, nproc, workdir, program):
+        return os.popen3(self.perSpecProcMpiExec % (machinefile, nproc, workdir, program))
