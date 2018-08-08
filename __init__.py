@@ -217,6 +217,7 @@ class espresso(Calculator):
                  command=None,
                  ####ENVIRON PART (credit Stefan Ringe)
                  environ_keys=None, #Environ keys given as dictionary, if given use_environ=True
+                 environ_extra_keys=None
                  ):
         """
     Construct an ase-espresso calculator.
@@ -503,6 +504,8 @@ svn co --username anonymous http://qeforge.qe-forge.org/svn/q-e/branches/espress
             self.parflags=''
             self.serflags=''
             self.use_environ=False
+        self.environ_extra_keys=environ_extra_keys
+
         if parflags is not  None:
             self.parflags += parflags
         self.single_calculator = single_calculator
@@ -886,19 +889,29 @@ svn co --username anonymous http://qeforge.qe-forge.org/svn/q-e/branches/espress
         else:
             fname = self.pwinp.split('/')[:-1]+'/'+filename
         f = open(fname,'w')
-        f.write(' &ENVIRON\n')
-        f.write('   !\n')
+        f.write('&ENVIRON\n')
+        f.write('  !\n')
         for key in self.environ_keys:
             value=self.environ_keys[key]
             if type(value)==str:
-                f.write('   {} = \'{}\'\n'.format(key, self.environ_keys[key]))
+                f.write('  {} = \'{}\'\n'.format(key, self.environ_keys[key]))
             elif 'e' in str(value):
                 value_str=str(value).replace('e','D')
-                f.write('   {} = {}\n'.format(key, value_str))
+                f.write('  {} = {}\n'.format(key, value_str))
             else:
-                f.write('   {} = {}\n'.format(key, self.environ_keys[key]))
-        f.write('   !\n')
-        f.write(' /')
+                f.write('  {} = {}\n'.format(key, self.environ_keys[key]))
+        f.write('  !\n')
+        f.write('/\n')
+        if self.environ_extra_keys is not None:
+            for key in self.environ_extra_keys:
+                if 'unit' not in self.environ_extra_keys[key]:
+                    unit='bohr'
+                else:
+                    unit=self.environ_extra_keys[key]['unit']
+                f.write('{} {}\n'.format(key,unit))
+                for vals in self.environ_extra_keys[key]['settings']:
+                    print vals
+                    f.write('{}\n'.format(' '.join([str(vv) for vv in vals])))
         f.close()
 
     def writeinputfile(self, filename='pw.inp', mode=None,
