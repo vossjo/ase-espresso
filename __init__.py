@@ -891,8 +891,14 @@ svn co --username anonymous http://qeforge.qe-forge.org/svn/q-e/branches/espress
         f.write('  !\n')
         for key in self.environ_keys:
             value=self.environ_keys[key]
-            if type(value)==str:
-                f.write('  {} = \'{}\'\n'.format(key, self.environ_keys[key]))
+            if type(value)==bool:
+                if value:
+                    value='.true.'
+                else:
+                    value='.false.'
+                f.write('  {} = {}\n'.format(key,value))
+            elif type(value)==str:
+                f.write('  {} = \'{}\'\n'.format(key, value))
             elif 'e' in str(value):
                 value_str=str(value).replace('e','D')
                 f.write('  {} = {}\n'.format(key, value_str))
@@ -902,14 +908,44 @@ svn co --username anonymous http://qeforge.qe-forge.org/svn/q-e/branches/espress
         f.write('/\n')
         if self.environ_extra_keys is not None:
             for key in self.environ_extra_keys:
-                if 'unit' not in self.environ_extra_keys[key]:
-                    unit='bohr'
+                #f.write('{} {}\n'.format(key,unit))
+                if key=='EXTERNAL_CHARGES':
+                    #CARDs
+                    if 'unit' not in self.environ_extra_keys[key]:
+                        unit='bohr'
+                    else:
+                        unit=self.environ_extra_keys[key]['unit']
+                    f.write('{} {}\n'.format(key,unit))
+                    for vals in self.environ_extra_keys[key]['settings']:
+                        f.write('  {}\n'.format(' '.join([str(vv) for vv in vals])))
                 else:
-                    unit=self.environ_extra_keys[key]['unit']
-                f.write('{} {}\n'.format(key,unit))
-                for vals in self.environ_extra_keys[key]['settings']:
-                    print vals
-                    f.write('{}\n'.format(' '.join([str(vv) for vv in vals])))
+                    #NAMELISTs
+                    f.write('&{}\n'.format(key))
+                    f.write('  !\n')
+                    for key2 in self.environ_extra_keys[key]:
+                        value=self.environ_extra_keys[key][key2]
+                        if type(value)==bool:
+                            if value:
+                                value='.true.'
+                            else:
+                                value='.false.'
+                            f.write('  {} = {}\n'.format(key2,value))
+                        elif type(value)==str:
+                            f.write('  {} = \'{}\'\n'.format(key2,value))
+                        #elif type(value)==bool or value in ['True','true','.true.',\
+                        #        '.True.','.False.','.false.','false','False']:
+                        #    if value or value in ['True','.True.','true','.true.']:
+                        #        value='\'.true.\''
+                        #    else:
+                        #        value='\'.false.\''
+                        #    f.write('  {} = {}\n'.format(key2,value))
+                        elif 'e' in str(value):
+                            value_str=str(value).replace('e','D')
+                            f.write('  {} = {}\n'.format(key2, value_str))
+                        else:
+                            f.write('  {} = {}\n'.format(key2,value))
+                    f.write('  !\n')
+                    f.write('/\n')
         f.close()
 
     def writeinputfile(self, filename='pw.inp', mode=None,
