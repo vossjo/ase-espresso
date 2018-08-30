@@ -932,13 +932,6 @@ svn co --username anonymous http://qeforge.qe-forge.org/svn/q-e/branches/espress
                             f.write('  {} = {}\n'.format(key2,value))
                         elif type(value)==str:
                             f.write('  {} = \'{}\'\n'.format(key2,value))
-                        #elif type(value)==bool or value in ['True','true','.true.',\
-                        #        '.True.','.False.','.false.','false','False']:
-                        #    if value or value in ['True','.True.','true','.true.']:
-                        #        value='\'.true.\''
-                        #    else:
-                        #        value='\'.false.\''
-                        #    f.write('  {} = {}\n'.format(key2,value))
                         elif 'e' in str(value):
                             value_str=str(value).replace('e','D')
                             f.write('  {} = {}\n'.format(key2, value_str))
