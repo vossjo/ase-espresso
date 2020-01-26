@@ -28,6 +28,7 @@ from types import FileType, StringType
 from constants import *
 from utils import *
 from subdirs import *
+from subprocess import Popen, PIPE
 
 # ase controlled pw.x's register themselves here, so they can be
 # stopped automatically
@@ -81,8 +82,10 @@ class espresso(Calculator):
                  outdir = None,
                  txt = None,
                  calcstress = False,
+                 vdw_corr = None,
                  smearing = 'fd',
                  sigma = 0.1,
+                 ibrav = 0,
                  fix_magmom = False,
                  isolated = None,
                  U = None,
@@ -196,7 +199,6 @@ class espresso(Calculator):
                  refold_pos = None,
                  upscale = None,
                  bfgs_ndim = None,
-                 vdw_corr = None,
                  ts_vdw_econv_thr = None,
                  ts_vdw_isolated = None,
                  lfcpopt = None,
@@ -493,7 +495,7 @@ svn co --username anonymous http://qeforge.qe-forge.org/svn/q-e/branches/espress
         self.parflags=''
         self.serflags=''
         #ENVIRON IMPLICIT SOLVATION
-        if environ_keys is not None:
+        if environ_keys is not None: # hasattr(self,'environ_keys') and self.environ_keys is not None:
             self.parflags=' -environ '
             self.serflags=' -environ '
             self.environ_keys=environ_keys
@@ -502,7 +504,9 @@ svn co --username anonymous http://qeforge.qe-forge.org/svn/q-e/branches/espress
             self.parflags=''
             self.serflags=''
             self.use_environ=False
+        self.environ_keys=environ_keys
         self.environ_extra_keys=environ_extra_keys
+        self.ibrav=int(ibrav)
 
         if parflags is not  None:
             self.parflags += parflags
@@ -592,7 +596,6 @@ svn co --username anonymous http://qeforge.qe-forge.org/svn/q-e/branches/espress
         self.refold_pos = refold_pos
         self.upscale = upscale
         self.bfgs_ndim = bfgs_ndim
-        self.vdw_corr = vdw_corr
         self.ts_vdw_econv_thr = ts_vdw_econv_thr
         self.ts_vdw_isolated = ts_vdw_isolated
         self.lfcpopt = lfcpopt
@@ -608,6 +611,7 @@ svn co --username anonymous http://qeforge.qe-forge.org/svn/q-e/branches/espress
         self.results = results
         self.name = name
 
+        self.vdw_corr = vdw_corr
 
         #give original espresso style input names
         #preference over ase / dacapo - style names
@@ -769,6 +773,18 @@ svn co --username anonymous http://qeforge.qe-forge.org/svn/q-e/branches/espress
                 self.kshift = value
             if key == 'fft_grid':   #RK
                 self.fft_grid = value
+            else:
+                setattr(self,key,value)
+        #ENVIRON IMPLICIT SOLVATION
+        if hasattr(self,'environ_keys') and self.environ_keys is not None:
+            self.parflags=' -environ '
+            self.serflags=' -environ '
+            self.use_environ=True
+        else:
+            self.parflags=''
+            self.serflags=''
+            self.use_environ=False
+        self.ibrav=int(self.ibrav)
         self.input_update()
         self.recalculate = True
         self.results = {}
@@ -871,6 +887,7 @@ svn co --username anonymous http://qeforge.qe-forge.org/svn/q-e/branches/espress
             p = os.popen('egrep -i \'z\ valence|z_valence\' '+self.psppath+'/'+el+'.UPF | tr \'"\' \' \'','r')
             for y in p.readline().split():
                 if y[0].isdigit() or y[0]=='.':
+#                    y.replace('E','e')
                     nel[el] = int(round(float(y)))
                     break
             p.close()
@@ -909,7 +926,7 @@ svn co --username anonymous http://qeforge.qe-forge.org/svn/q-e/branches/espress
         if self.environ_extra_keys is not None:
             for key in self.environ_extra_keys:
                 #f.write('{} {}\n'.format(key,unit))
-                if key=='EXTERNAL_CHARGES':
+                if key in ['EXTERNAL_CHARGES','DIELECTRIC_REGIONS']:
                     #CARDs
                     if 'unit' not in self.environ_extra_keys[key]:
                         unit='bohr'
@@ -1045,7 +1062,7 @@ svn co --username anonymous http://qeforge.qe-forge.org/svn/q-e/branches/espress
 
 
         ### &SYSTEM ###
-        print >>f, '/\n&SYSTEM\n  ibrav=0,\n  celldm(1)=1.8897261245650618d0,'
+        print >>f, '/\n&SYSTEM\n  ibrav='+str(self.ibrav)+',\n  celldm(1)=1.8897261245650618d0,'
         print >>f, '  nat='+str(self.natoms)+','
         self.atoms2species() #self.convertmag2species()
         print >>f, '  ntyp='+str(self.nspecies)+',' #str(len(self.msym))+','
@@ -2347,7 +2364,6 @@ svn co --username anonymous http://qeforge.qe-forge.org/svn/q-e/branches/espress
                 os.system('cd '+self.scratch+' ; '+binary+' '+self.serflags+' -in '+inp+ll)
         if piperead:
             return p
-
     def run_ppx(self, inp, log=None, inputpp=[], plot=[],
         output_format=5, iflag=3, piperead=False, parallel=True):
         if self.output.has_key('disk_io'):
@@ -2388,12 +2404,22 @@ svn co --username anonymous http://qeforge.qe-forge.org/svn/q-e/branches/espress
         if self.fermi_input:
             return self.inputfermilevel
         self.stop()
-        try:
-            p = os.popen('grep -a Fermi '+self.log+'|tail -1', 'r')
-            efermi = float(p.readline().split()[-2])
-            p.close()
-        except:
+        efermi=None
+        efermi_corr=0.0
+        for line in  open(self.log,'r'):
+            if 'the Fermi energy is' in line:
+                efermi=float(line.split()[-2])
+            if 'the Fermi energy shift due to the parabolic pbc' in line:
+                efermi_corr=float(line.split()[-2])
+        if efermi is None:
             raise RuntimeError, 'get_fermi_level called before DFT calculation was run'
+
+        with open(self.outdir+'/fermilevel.txt','w') as of:
+            of.write('The Fermi level is {} eV\n'.format(efermi))
+            if efermi_corr!=0.0:
+                of.write('The Fermi correction is {} eV\n'.format(efermi_corr))
+            of.write('The corrected Fermi level is {} eV\n'.format(efermi+efermi_corr))
+        efermi+=efermi_corr
         return efermi
 
 
@@ -2483,7 +2509,6 @@ svn co --username anonymous http://qeforge.qe-forge.org/svn/q-e/branches/espress
         f.close()
         # run projwfc.x
         self.run_espressox('projwfc.x', 'pdos.inp', 'pdos.log')
-
         # read in total density of states
         dos = np.loadtxt(self.scratch+'/calc.pdos_tot')
         if len(dos[0])>3:
@@ -2523,7 +2548,6 @@ svn co --username anonymous http://qeforge.qe-forge.org/svn/q-e/branches/espress
             if add_higher_channels or first:
                 for j in range(ncomponents):
                     self.pdos[iatom][channel][j] += pdosinp[:,(j+1)]
-
         if get_overlap_integrals:
             return self.dos_energies, self.dos_total, self.pdos, self.__get_atomic_projections__()
         else:
