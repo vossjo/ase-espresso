@@ -665,10 +665,10 @@ svn co --username anonymous http://qeforge.qe-forge.org/svn/q-e/branches/espress
         # Run initialization functions, such that this can be called if variables in espresso are
         #changes using set or directly.
 
-        self.create_outdir() # Create the tmp output folder
-
         #sdir is the directory the script is run or submitted from
         self.sdir = getsubmitorcurrentdir(site)
+	
+	self.create_outdir() # Create the tmp output folder
 
         if self.dw is None:
             self.dw = 10. * self.pw
@@ -707,7 +707,7 @@ svn co --username anonymous http://qeforge.qe-forge.org/svn/q-e/branches/espress
             if not self.txt:
                 self.log = self.localtmp+'/log'
             elif self.txt[0]!='/':
-                self.log = self.sdir+'/log'
+                self.log = self.sdir+'/'+self.txt
             else:
                 self.log = self.txt
             self.scratch = mkscratch(self.localtmp, site)
